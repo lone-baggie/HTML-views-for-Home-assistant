@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Error</title>
+    <style>
+        /* The ultimate minimalist global reset */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Massive yellow face optimized for absolute maximum distance visibility */
+        .emoji {
+            font-size: 65vmin; /* Upscaled massively to fill the viewport */
+            line-height: 1;
+            text-align: center;
+            user-select: none;
+            
+            /* The 'heartbeat' pulse so you know the webview engine hasn't kernel panicked */
+            animation: pulse 3s infinite ease-in-out;
+            
+            /* Soft neon warning glow against the pitch-black canvas */
+            filter: drop-shadow(0 0 35px rgba(255, 204, 0, 0.5));
+        }
+
+        /* Keeping the page alive with a gentle scale animation */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- The lone sentinel of failure -->
+    <div class="emoji">☹️</div>
+
+    <script>
+        // The self-healing loop. 
+        // Checks every 30 seconds to see if your Home Assistant instance or network has mended.
+        setInterval(() => {
+            console.log("cron: polling for system recovery...");
+            window.location.reload();
+        }, 30000); 
+    </script>
+</body>
+</html>

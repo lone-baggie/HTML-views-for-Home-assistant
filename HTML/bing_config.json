@@ -1,0 +1,8 @@
+{
+  "system_config": {
+    "rotation_timeout_minutes": 1,
+    "clock_format_24h": true,
+    "date_locale": "en-GB",
+    "timezone": "Europe/London"
+  }
+}

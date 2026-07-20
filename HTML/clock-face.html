@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Newgate Michroma Premium Horizon Kiosk</title>
+    <!-- Importing Michroma: Perfect geometric retro-futuristic wide slabs -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Michroma&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #060608;
+            --clock-gold: #dfb260; /* Mid-century brass */
+            --clock-gold-dim: rgba(223, 178, 96, 0.2);
+            --crosshair-color: rgba(223, 178, 96, 0.35);
+            --text-color: #ebd1a2; /* Soft vintage cream for hands */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        html, body {
+            background-color: var(--bg-color);
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            font-family: 'Michroma', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Main Kiosk Chassis --- */
+        .kiosk-container {
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* --- Extreme Panoramic Stretch Canvas --- */
+        .clock-canvas {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: scaleX(1.75);
+            transform-origin: center center;
+        }
+
+        /* --- Background Layer: Infinite Horizon Crosshairs --- */
+        .horizon-axis {
+            position: absolute;
+            background-color: var(--crosshair-color);
+            z-index: 1;
+        }
+        
+        /* Horizontal Split */
+        .horizon-left {
+            top: 50%;
+            left: 0;
+            width: 50%;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+        .horizon-right {
+            top: 50%;
+            right: 0;
+            width: 50%;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+
+        /* Vertical Split */
+        .horizon-top {
+            left: 50%;
+            top: 0;
+            height: 50%;
+            width: 2px;
+            transform: translateX(-50%);
+        }
+        .horizon-bottom {
+            left: 50%;
+            bottom: 0;
+            height: 50%;
+            width: 2px;
+            transform: translateX(-50%);
+        }
+
+        /* --- Background Layer: Dynamic Vector Track --- */
+        .central-dial-svg {
+            position: absolute;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* --- Background Layer: Brand Details --- */
+        .brand-logo {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--clock-gold);
+            transform: translate(-50%, -50%) rotate(45deg);
+            left: 50%;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+        }
+
+        .brand-logo::after {
+            content: 'N';
+            transform: rotate(-45deg);
+            color: var(--clock-gold);
+            font-size: 11px;
+            font-weight: bold;
+            font-family: serif;
+            position: relative;
+            bottom: 1px;
+        }
+
+        .brand-text {
+            position: absolute;
+            color: var(--clock-gold);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 7px;
+            text-align: center;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2;
+            opacity: 0.8;
+        }
+
+        /* --- Background Layer: Wide Type Elements --- */
+        .number-box {
+            position: absolute;
+            color: var(--clock-gold);
+            text-align: center;
+            z-index: 4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0.7;
+            white-space: nowrap;
+            /* Outlined/Thickened text stroke for heavy retro presentation weight */
+            -webkit-text-stroke: 1.5px var(--clock-gold);
+            /* Flatten slightly for that authentic retro chassis glass compression look */
+            transform: translate(-50%, -50%) scale(1.0, 0.82);
+            transform-origin: center center;
+        }
+
+        /* --- Foreground Layer: High-Precision Counter-Stretched Hands --- */
+        .hands-layer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            transform: scaleX(0.5714);
+            transform-origin: center center;
+        }
+
+        .clock-hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            will-change: transform;
+        }
+
+        .hour-hand {
+            background-color: var(--text-color);
+            width: 14px;
+            height: 20%;
+            margin-left: -7px;
+            border-radius: 1px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        .minute-hand {
+            background-color: var(--text-color);
+            width: 8px;
+            height: 30%;
+            margin-left: -4px;
+            border-radius: 1px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        .second-hand {
+            background-color: var(--clock-gold);
+            width: 2px;
+            height: 34%;
+            margin-left: -1px;
+        }
+
+        /* Absolute Center Pivot Cap */
+        .center-cap {
+            position: absolute;
+            background-color: var(--clock-gold);
+            border: 4px solid var(--bg-color);
+            border-radius: 50%;
+            z-index: 20;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            transform: translate(-50%, -50%) scaleX(0.5714);
+            transform-origin: center center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="kiosk-container">
+        <div class="clock-canvas" id="clock-canvas">
+            
+            <!-- Panoramic Axis Layout Frame -->
+            <div class="horizon-axis horizon-left"></div>
+            <div class="horizon-axis horizon-right"></div>
+            <div class="horizon-axis horizon-top"></div>
+            <div class="horizon-axis horizon-bottom"></div>
+            
+            <div class="brand-logo" id="brand-logo"></div>
+            <div class="brand-text" id="brand-text">NEWGATE</div>
+
+            <!-- Dynamic Vector Overlay for Dots and Diagonal Structural Spokes -->
+            <svg class="central-dial-svg" id="central-dial-svg"></svg>
+
+            <!-- Layout Nodes -->
+            <div class="number-box" data-num="12">12</div>
+            <div class="number-box" data-num="1">1</div>
+            <div class="number-box" data-num="2">2</div>
+            <div class="number-box" data-num="3">3</div>
+            <div class="number-box" data-num="4">4</div>
+            <div class="number-box" data-num="5">5</div>
+            <div class="number-box" data-num="6">6</div>
+            <div class="number-box" data-num="7">7</div>
+            <div class="number-box" data-num="8">8</div>
+            <div class="number-box" data-num="9">9</div>
+            <div class="number-box" data-num="10">10</div>
+            <div class="number-box" data-num="11">11</div>
+
+            <!-- Hand Stack System -->
+            <div class="hands-layer">
+                <div class="clock-hand hour-hand" id="hour-hand"></div>
+                <div class="clock-hand minute-hand" id="minute-hand"></div>
+                <div class="clock-hand second-hand" id="second-hand"></div>
+            </div>
+
+            <!-- Hardware Center Spindle Pin -->
+            <div class="center-cap" id="center-cap"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('clock-canvas');
+        const dialSvg = document.getElementById('central-dial-svg');
+        const hourHand = document.getElementById('hour-hand');
+        const minuteHand = document.getElementById('minute-hand');
+        const secondHand = document.getElementById('second-hand');
+        const centerCap = document.getElementById('center-cap');
+        const brandLogo = document.getElementById('brand-logo');
+        const brandText = document.getElementById('brand-text');
+
+        // COORDINATE MAP ENGINE (Tuned cleanly for Michroma's box boundaries)
+        const layoutMatrix = {
+            12: { xOffset: 0.00, yOffset: -1.45 },
+            1:  { xOffset: 0.60, yOffset: -1.28 },
+            2:  { xOffset: 1.04, yOffset: -0.72 },
+            3:  { xOffset: 1.38, yOffset: 0.00 }, 
+            4:  { xOffset: 1.04, yOffset: 0.72 },
+            5:  { xOffset: 0.60, yOffset: 1.28 },
+            6:  { xOffset: 0.00, yOffset: 1.45 },
+            7:  { xOffset: -0.60, yOffset: 1.28 },
+            8:  { xOffset: -1.04, yOffset: 0.72 },
+            9:  { xOffset: -1.38, yOffset: 0.00 }, 
+            10: { xOffset: -1.04, yOffset: -0.72 },
+            11: { xOffset: -0.64, yOffset: -1.28 }
+        };
+
+        function layoutEngine() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            const dialRadius = height * 0.28; 
+
+            dialSvg.setAttribute("width", width);
+            dialSvg.setAttribute("height", height);
+            dialSvg.innerHTML = ''; 
+
+            const cx = width / 2;
+            const cy = height / 2;
+
+            const fontScale = height * 0.068;
+            
+            brandLogo.style.top = `${cy - (dialRadius * 0.40)}px`;
+            brandText.style.top = `${cy + (dialRadius * 0.48)}px`;
+
+            const capSize = Math.round(height * 0.045);
+            centerCap.style.width = `${capSize}px`;
+            centerCap.style.height = `${capSize}px`;
+            centerCap.style.left = `${cx}px`;
+            centerCap.style.top = `${cy}px`;
+
+            const svgNS = "http://www.w3.org/2000/svg";
+
+            // 1. FIXED: GENERATE CONTINUOUS DIAGONAL RADIAL LINES FROM THE CENTER
+            Object.keys(layoutMatrix).forEach(key => {
+                const val = parseInt(key, 10);
+                // 3, 6, 9, 12 handle the existing standard infinite crosshair divs
+                if (val % 3 !== 0) {
+                    const config = layoutMatrix[val];
+                    
+                    // Pull coordinates out to target the numbers
+                    const endX = cx + (dialRadius * config.xOffset * 0.82);
+                    const endY = cy + (dialRadius * config.yOffset * 0.82);
+
+                    const spoke = document.createElementNS(svgNS, "line");
+                    // Drawing directly from the absolute center spindle outward
+                    spoke.setAttribute("x1", cx);
+                    spoke.setAttribute("y1", cy);
+                    spoke.setAttribute("x2", endX);
+                    spoke.setAttribute("y2", endY);
+                    spoke.setAttribute("stroke", "var(--crosshair-color)");
+                    spoke.setAttribute("stroke-width", `${1.5 / 1.75}`); 
+                    dialSvg.appendChild(spoke);
+                }
+            });
+
+            // 2. GENERATE DIAL TRACK DOTS & ACCENT CARDINAL TARGET CIRCLES
+            for (let i = 0; i < 60; i++) {
+                const angle = (i * 6) * (Math.PI / 180);
+                const dx = cx + (dialRadius * Math.sin(angle));
+                const dy = cy - (dialRadius * Math.cos(angle));
+
+                const circle = document.createElementNS(svgNS, "circle");
+                circle.setAttribute("cx", dx);
+                circle.setAttribute("cy", dy);
+
+                if (i % 15 === 0) {
+                    // Accent crosshair layout target rings
+                    circle.setAttribute("r", Math.max(5.5, height * 0.012));
+                    circle.setAttribute("fill", "var(--clock-gold)");
+                } else if (i % 5 === 0) {
+                    // Standard Hour Track Dots
+                    circle.setAttribute("r", Math.max(3.5, height * 0.007));
+                    circle.setAttribute("fill", "var(--clock-gold)");
+                } else {
+                    // Minute Segment Dots
+                    circle.setAttribute("r", Math.max(1.5, height * 0.003));
+                    circle.setAttribute("fill", "var(--clock-gold-dim)");
+                }
+                dialSvg.appendChild(circle);
+            }
+
+            // 3. DISTRIBUTE NUMBER BLOCKS
+            const numbers = document.querySelectorAll('.number-box');
+            numbers.forEach(num => {
+                const val = parseInt(num.getAttribute('data-num'), 10);
+                const config = layoutMatrix[val];
+
+                const posX = cx + (dialRadius * config.xOffset);
+                const posY = cy + (dialRadius * config.yOffset);
+
+                num.style.fontSize = `${fontScale}px`;
+                num.style.left = `${posX}px`;
+                num.style.top = `${posY}px`;
+            });
+        }
+
+        function chronosEngine() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            const ms = now.getMilliseconds();
+
+            const totalMsInMinute = (seconds * 1000) + ms;
+            const secondsDeg = totalMsInMinute * 0.006; 
+
+            const minutesDeg = (minutes * 6) + (seconds * 0.1);
+            const hoursDeg = ((hours % 12) * 30) + (minutes * 0.5);
+
+            hourHand.style.transform = `rotate(${hoursDeg}deg)`;
+            minuteHand.style.transform = `rotate(${minutesDeg}deg)`;
+            secondHand.style.transform = `rotate(${secondsDeg}deg)`;
+            
+            requestAnimationFrame(chronosEngine);
+        }
+
+        window.addEventListener('resize', layoutEngine);
+        layoutEngine();
+        chronosEngine();
+    </script>
+</body>
+</html>

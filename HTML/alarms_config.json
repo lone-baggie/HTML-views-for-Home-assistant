@@ -1,0 +1,9 @@
+{
+  "ui_configuration": {
+    "panel_title": "⏰ Active Alarms",
+    "alarm_entity": "sensor.list_alarms"
+  },
+  "token_configuration": {
+    "filename": "ha_token.txt"
+  }
+}

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Shopping List Sandbox Edition</title>
+    <style>
+        /* --- Linux Kiosk Console Dark Mode Variables --- */
+        :root {
+            --bg-color: #0f0f11;
+            --card-color: #16161a;
+            --text-color: #f1f5f9;
+            --accent-color: #38bdf8;
+            --border-color: #27272a;
+            --sub-text: #a1a1aa;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        html, body {
+            background-color: var(--bg-color);
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Full Screen Sandboxed Layout Framework --- */
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        h1 {
+            font-weight: 800;
+        }
+
+        .counter {
+            background-color: var(--border-color);
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        /* --- Scrolling High-Contrast Row Pipeline --- */
+        .todo-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-grow: 1;
+            width: 100%;
+            /* Custom scrollbar hiding to maintain clean kiosk look */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .todo-list::-webkit-scrollbar {
+            display: none;
+        }
+
+        .todo-item {
+            background-color: var(--card-color);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            width: 100%;
+        }
+
+        .empty-msg {
+            text-align: center;
+            color: #52525b;
+            font-weight: 600;
+            width: 100%;
+        }
+
+        /* --- Interactive Syslog Terminal Output --- */
+        .debug-console {
+            background: #18181b;
+            border: 1px solid #ef4444;
+            color: #f87171;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.95rem;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            display: none;
+            overflow-x: auto;
+        }
+
+        /* --- Secure Token Configuration Prompt Overlay --- */
+        .token-gate {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(15, 15, 17, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 9999;
+        }
+
+        .gate-box {
+            background: var(--card-color);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .gate-box h2 { font-size: 1.8rem; margin-bottom: 12px; }
+        .gate-box p { color: var(--sub-text); margin-bottom: 20px; font-size: 1rem; }
+        
+        .gate-box input {
+            width: 100%;
+            padding: 14px;
+            background: #0f0f11;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        
+        .gate-box button {
+            background: #0284c7;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="setup-gate" class="token-gate" style="display: none;">
+        <div class="gate-box">
+            <h2>🔒 Security Setup</h2>
+            <p id="gate-message">Paste your Home Assistant Long-Lived Access Token. It will be saved directly into this tablet's local storage pool.</p>
+            <input type="password" id="token-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+            <button id="save-token-btn">Save Token Securely</button>
+        </div>
+    </div>
+
+    <div class="container" id="main-container">
+        <header id="main-header">
+            <h1 id="panel-title-text">🛒 Shopping List</h1>
+            <div class="counter" id="item-count">0 items</div>
+        </header>
+
+        <ul class="todo-list" id="list-container"></ul>
+
+        <div class="debug-console" id="debug-log"></div>
+    </div>
+
+    <script>
+        // --- Core Environment Configuration ---
+        const HA_URL = window.location.origin; 
+        
+        let FULL_CONFIG = null;
+        let ACCESS_TOKEN = localStorage.getItem('ha_secure_token');
+
+        const listContainer = document.getElementById('list-container');
+        const itemCount = document.getElementById('item-count');
+        const debugLog = document.getElementById('debug-log');
+        const setupGate = document.getElementById('setup-gate');
+        const tokenInput = document.getElementById('token-input');
+        const saveTokenBtn = document.getElementById('save-token-btn');
+        const panelTitleText = document.getElementById('panel-title-text');
+        const gateMessage = document.getElementById('gate-message');
+
+        /* 
+           The Sandboxed Layout Engine:
+           Calculates screen boundaries on execution and forces layout parameters
+           to adapt using absolute pixel scaling calculations.
+        */
+        function layoutEngine() {
+            const displayW = window.innerWidth;
+            const displayH = window.innerHeight;
+            
+            // Reference layout scaling off the shortest screen axis
+            const layoutScale = Math.min(displayW, displayH);
+            
+            // Compute scale metrics based on environment dimensions
+            const framePadding = Math.round(layoutScale * 0.04);
+            const entryGap = Math.round(layoutScale * 0.02);
+            const rowRadius = Math.round(layoutScale * 0.015);
+            
+            // Standardize Master Layout Boundaries
+            const mainContainer = document.getElementById('main-container');
+            mainContainer.style.padding = `${framePadding}px`;
+            
+            // Scale Header Properties
+            const mainHeader = document.getElementById('main-header');
+            mainHeader.style.marginBottom = `${Math.round(layoutScale * 0.03)}px`;
+            mainHeader.style.paddingBottom = `${Math.round(layoutScale * 0.02)}px`;
+            mainHeader.style.borderBottomWidth = `${Math.round(layoutScale * 0.004) || 1}px`;
+            
+            // Adjust Header Text Elements
+            panelTitleText.style.fontSize = `${Math.round(layoutScale * 0.065)}px`;
+            
+            // Adjust Counter Badge Sizing
+            itemCount.style.fontSize = `${Math.round(layoutScale * 0.035)}px`;
+            itemCount.style.padding = `${Math.round(layoutScale * 0.008)}px ${Math.round(layoutScale * 0.025)}px`;
+            itemCount.style.borderRadius = `${Math.round(layoutScale * 0.04)}px`;
+            
+            // Scale Main List Inter-Row Gaps
+            listContainer.style.gap = `${entryGap}px`;
+            
+            // Intercept and scale active child list entries
+            document.querySelectorAll('.todo-item').forEach(row => {
+                row.style.padding = `${Math.round(layoutScale * 0.028)}px ${Math.round(layoutScale * 0.04)}px`;
+                row.style.borderRadius = `${rowRadius}px`;
+                row.style.fontSize = `${Math.round(layoutScale * 0.045)}px`;
+                row.style.borderWidth = `${Math.round(layoutScale * 0.002) || 1}px`;
+            });
+            
+            // Intercept empty messages
+            const emptyMessage = document.querySelector('.empty-msg');
+            if (emptyMessage) {
+                emptyMessage.style.fontSize = `${Math.round(layoutScale * 0.05)}px`;
+                emptyMessage.style.marginTop = `${Math.round(displayH * 0.2)}px`;
+            }
+        }
+
+        function printStackTrace(err, context = "") {
+            debugLog.style.display = "block";
+            debugLog.textContent = `[System Panic] ${context}\nException Summary: ${err.message || err}\n\nStack Trace:\n${err.stack || "No trace available."}`;
+        }
+
+        // Bootstrapping phase: Read config maps, then handle tokens
+        async function bootstrapApplication() {
+            // Apply layout engine processing straight out of cold boot
+            layoutEngine();
+            window.addEventListener('resize', layoutEngine);
+
+            try {
+                const response = await fetch('shopping_config.json');
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}: Failed to read shopping_config.json`);
+                
+                FULL_CONFIG = await response.json();
+                
+                if (FULL_CONFIG.ui_configuration && FULL_CONFIG.ui_configuration.panel_title) {
+                    panelTitleText.textContent = FULL_CONFIG.ui_configuration.panel_title;
+                }
+
+                if (!ACCESS_TOKEN) {
+                    await tryLoadingTokenFromFile();
+                } else {
+                    startPollingEngine();
+                }
+            } catch (err) {
+                setupGate.style.display = 'flex';
+                gateMessage.innerHTML = `<span style="color: #ef4444; font-weight: bold;">Config Map Error: Check browser console or file locations.</span>`;
+                printStackTrace(err, "Bootstrap Execution Failure (JSON loader broken)");
+            }
+        }
+
+        async function tryLoadingTokenFromFile() {
+            try {
+                if (!FULL_CONFIG.token_configuration || !FULL_CONFIG.token_configuration.filename) {
+                    throw new Error("JSON structure missing token_configuration.filename map target.");
+                }
+
+                const tokenFilename = FULL_CONFIG.token_configuration.filename; 
+                
+                const response = await fetch(tokenFilename);
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}: Path '${tokenFilename}' missing or unreachable.`);
+                
+                const text = await response.text();
+                const cleanToken = text.trim();
+                
+                if (cleanToken.length > 0) {
+                    localStorage.setItem('ha_secure_token', cleanToken);
+                    ACCESS_TOKEN = cleanToken;
+                    setupGate.style.display = 'none';
+                    startPollingEngine();
+                } else {
+                    throw new Error(`Token extracted out of '${tokenFilename}' was empty.`);
+                }
+            } catch (err) {
+                setupGate.style.display = 'flex';
+                setupManualTokenInputListener();
+                console.warn("Token file pipeline failed, falling back to manual entry interface:", err.message);
+            }
+        }
+
+        function setupManualTokenInputListener() {
+            saveTokenBtn.addEventListener('click', () => {
+                const tokenValue = tokenInput.value.trim();
+                if (tokenValue) {
+                    localStorage.setItem('ha_secure_token', tokenValue);
+                    ACCESS_TOKEN = tokenValue;
+                    setupGate.style.display = 'none';
+                    startPollingEngine();
+                }
+            });
+        }
+
+        function startPollingEngine() {
+            fetchShoppingList();
+            setInterval(fetchShoppingList, 10000);
+        }
+
+        async function fetchShoppingList() {
+            if (!ACCESS_TOKEN || !FULL_CONFIG || !FULL_CONFIG.ui_configuration) return;
+            
+            const wsUrl = HA_URL.replace(/^http/, 'ws') + '/api/websocket';
+            const socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                socket.send(JSON.stringify({
+                    type: "auth",
+                    access_token: ACCESS_TOKEN
+                }));
+            };
+
+            socket.onmessage = (event) => {
+                const response = JSON.parse(event.data);
+
+                if (response.type === "auth_invalid") {
+                    localStorage.removeItem('ha_secure_token');
+                    alert("Token rejected by Home Assistant. Please refresh and re-authenticate.");
+                    window.location.reload();
+                }
+
+                if (response.type === "auth_ok") {
+                    socket.send(JSON.stringify({
+                        id: 1,
+                        type: "call_service",
+                        domain: "todo",
+                        service: "get_items",
+                        service_data: {
+                            entity_id: FULL_CONFIG.ui_configuration.todo_entity,
+                            status: "needs_action"
+                        },
+                        return_response: true
+                    }));
+                }
+
+                if (response.id === 1 && response.type === "result") {
+                    let items = [];
+                    const targetEntity = FULL_CONFIG.ui_configuration.todo_entity;
+                    const resultData = response.result?.response?.[targetEntity]?.items;
+
+                    if (Array.isArray(resultData)) {
+                        items = resultData;
+                    }
+
+                    debugLog.style.display = "none";
+                    renderList(items);
+                    socket.close(); 
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.error("WebSocket Pipeline Crash:", error);
+                listContainer.innerHTML = `<li class="empty-msg" style="color: #ef4444;">API Connection Failed</li>`;
+                printStackTrace(error, "WebSocket transport failure over route: " + wsUrl);
+            };
+        }
+
+        function renderList(items) {
+            listContainer.innerHTML = '';
+            itemCount.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+
+            if (items.length === 0) {
+                listContainer.innerHTML = `<li class="empty-msg">List is empty!</li>`;
+            } else {
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'todo-item';
+                    li.innerHTML = `<span>${item.summary}</span>`;
+                    listContainer.appendChild(li);
+                });
+            }
+
+            // Fire layout engine calculations to scale newly generated rows immediately
+            layoutEngine();
+        }
+
+        // Run system initializations
+        bootstrapApplication();
+    </script>
+</body>
+</html>

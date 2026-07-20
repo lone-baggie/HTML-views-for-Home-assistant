@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Standalone Bing Photo Screensaver</title>
+    <style>
+        :root {
+            --text-color: #ffffff;
+            --kiosk-brightness: 100%;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #0d0e12;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text-color);
+            filter: brightness(var(--kiosk-brightness));
+            transition: filter 2s ease-in-out;
+        }
+
+        /* Fullscreen photo stages */
+        .stage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity 2.5s ease-in-out;
+            z-index: 1;
+        }
+
+        .stage.active {
+            opacity: 1;
+            z-index: 2;
+        }
+
+        /* Ambient fallback background gradient */
+        .fallback-gradient {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #1e1e24 0%, #0f0f11 100%);
+            z-index: 0;
+        }
+
+        /* Ambient dark vignette scrim to make the font pop (No blur!) */
+        .scrim {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        /* Heads Up Display Overlay - Bottom Aligned Only */
+        .hud-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Keeps everything locked to the floor */
+            align-items: flex-start;   /* Aligns all HUD elements cleanly to the left */
+            pointer-events: none;
+        }
+
+        /* Row layout to line up time and date perfectly */
+        .time-box {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-end; /* Formats their baselines to sit on the same line */
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .clock-display {
+            font-weight: 700;
+            line-height: 0.9; /* Tighter bounding box for baseline alignment */
+            letter-spacing: -1px;
+        }
+
+        .date-display {
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Discreet copyright credit line now nested directly under time and date */
+        .copyright-credit {
+            font-family: monospace;
+            color: rgba(255, 255, 255, 0.5);
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            pointer-events: none;
+            max-width: 90%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Simple loading container overlay */
+        .boot-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #0f0f11;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            font-size: 1.3rem;
+            transition: opacity 1s ease;
+            color: #a1a1aa;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="boot-gate" class="boot-screen">Reading local configuration maps...</div>
+
+    <!-- Background safety net -->
+    <div class="fallback-gradient"></div>
+
+    <!-- Dual stages for double-buffered image crossfading -->
+    <div id="stage-a" class="stage"></div>
+    <div id="stage-b" class="stage"></div>
+    <div class="scrim"></div>
+
+    <!-- Bottom HUD elements (Time, Date, and Credit all grouped to the left) -->
+    <div class="hud-container" id="hud-frame">
+        <div class="time-box" id="time-row">
+            <span class="clock-display" id="clock">00:00</span>
+            <span class="date-display" id="date">Loading Date...</span>
+        </div>
+        <div class="copyright-credit" id="image-credit">Bing Daily Wallpaper</div>
+    </div>
+
+    <script>
+        const stageA = document.getElementById('stage-a');
+        const stageB = document.getElementById('stage-b');
+        const bootGate = document.getElementById('boot-gate');
+        const clockEl = document.getElementById('clock');
+        const dateEl = document.getElementById('date');
+        const creditEl = document.getElementById('image-credit');
+        
+        let currentStage = stageA;
+        let wallpaperList = [];
+        let activeWallIndex = 0;
+        let rotationTimer = null;
+
+        // Fallback options in case JSON parsing hits an exception
+        let systemConfig = {
+            rotation_timeout_minutes: 5,
+            clock_format_24h: true,
+            date_locale: "en-GB",
+            timezone: "Europe/London"
+        };
+
+        /* 
+           The Embedded Layout Engine:
+           Calculates active window viewport bounds and assigns absolute pixel
+           dimensions to maintain perfect baseline font alignment.
+        */
+        function layoutEngine() {
+            const displayW = window.innerWidth;
+            const displayH = window.innerHeight;
+            const layoutScale = Math.min(displayW, displayH);
+
+            const paddingSide = Math.round(layoutScale * 0.05);
+            const paddingBottom = Math.round(layoutScale * 0.025);
+            const itemsGap = Math.round(layoutScale * 0.03);
+
+            const hudFrame = document.getElementById('hud-frame');
+            hudFrame.style.padding = `${paddingBottom}px ${paddingSide}px ${paddingBottom}px ${paddingSide}px`;
+
+            const timeRow = document.getElementById('time-row');
+            timeRow.style.gap = `${itemsGap}px`;
+
+            clockEl.style.fontSize = `${Math.round(layoutScale * 0.15)}px`;
+            dateEl.style.fontSize = `${Math.round(layoutScale * 0.045)}px`;
+            dateEl.style.paddingBottom = `${Math.round(layoutScale * 0.012)}px`;
+            
+            creditEl.style.fontSize = `${Math.round(layoutScale * 0.015)}px`;
+            creditEl.style.marginTop = `${Math.round(layoutScale * 0.012)}px`;
+        }
+
+        /*
+           JSON Bootstrapping Worker:
+           Pulls bing_config.json from local disk and overrides defaults before initiating display loops.
+        */
+        async function loadConfig() {
+            try {
+                const response = await fetch('bing_config.json');
+                if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to grab configuration file.`);
+                
+                const data = await response.json();
+                if (data && data.system_config) {
+                    systemConfig = { ...systemConfig, ...data.system_config };
+                    console.log("Config loaded successfully:", systemConfig);
+                }
+            } catch (err) {
+                console.warn("Could not parse config file, applying hardcoded system fallbacks.", err);
+            }
+        }
+
+        /* 
+           Multi-Page Bing Crawler:
+           Fires off parallel asynchronous requests to page through 16 days of Bing history,
+           merges them, de-duplicates, and loads them into our carousel.
+        */
+        async function fetchBingWallpapers() {
+            const apiPage1 = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=en-US";
+            const apiPage2 = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=8&n=8&mkt=en-US";
+
+            const proxyUrl1 = `https://corsproxy.io/?${encodeURIComponent(apiPage1)}`;
+            const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(apiPage2)}`;
+
+            try {
+                const [response1, response2] = await Promise.all([
+                    fetch(proxyUrl1).then(res => res.json()),
+                    fetch(proxyUrl2).then(res => res.json())
+                ]);
+
+                const batch1 = response1?.images || [];
+                const batch2 = response2?.images || [];
+                const combinedRaw = [...batch1, ...batch2];
+
+                if (combinedRaw.length > 0) {
+                    const uniqueImages = [];
+                    const seenUrls = new Set();
+
+                    for (const img of combinedRaw) {
+                        if (!seenUrls.has(img.url)) {
+                            seenUrls.add(img.url);
+                            uniqueImages.push({
+                                url: `https://www.bing.com${img.url}`,
+                                copyright: img.copyright
+                            });
+                        }
+                    }
+
+                    wallpaperList = uniqueImages;
+                    rotateImage();
+                } else {
+                    throw new Error("Empty image manifests returned from Bing API pages.");
+                }
+            } catch (err) {
+                console.warn("Unable to fetch remote Bing archives. Dropping back to default local assets.", err);
+                wallpaperList = Array.from({length: 16}, (_, i) => ({
+                    url: `https://picsum.photos/id/${[10, 29, 43, 48, 56, 76, 96, 124, 133, 145, 163, 175, 188, 197, 212, 230][i]}/${window.innerWidth}/${window.innerHeight}`,
+                    copyright: "Scenic Landscape (Local Fallback Mode)"
+                }));
+                rotateImage();
+            }
+        }
+
+        // Double-buffered crossfade rotation engine
+        function rotateImage() {
+            if (wallpaperList.length === 0) return;
+
+            const nextStage = (currentStage === stageA) ? stageB : stageA;
+            const currentItem = wallpaperList[activeWallIndex];
+            
+            const imgLoader = new Image();
+            imgLoader.src = currentItem.url;
+            
+            imgLoader.onload = () => {
+                nextStage.style.backgroundImage = `url('${currentItem.url}')`;
+                creditEl.textContent = currentItem.copyright;
+                
+                currentStage.classList.remove('active');
+                nextStage.classList.add('active');
+                
+                currentStage = nextStage;
+                dismissBootScreen();
+                
+                activeWallIndex = (activeWallIndex + 1) % wallpaperList.length;
+            };
+
+            imgLoader.onerror = () => {
+                console.log("Image preloader failed. Retrying in next cycle.");
+                dismissBootScreen();
+                activeWallIndex = (activeWallIndex + 1) % wallpaperList.length;
+            };
+        }
+
+        function dismissBootScreen() {
+            if (bootGate.style.opacity !== '0') {
+                bootGate.style.opacity = '0';
+                setTimeout(() => bootGate.style.display = 'none', 1000);
+            }
+        }
+
+        // Clock daemon with night shift dimming logic using dynamic timezone and formatting configurations
+        function startClock() {
+            function update() {
+                const now = new Date();
+                
+                // Clock formatting based on configuration options
+                const clockOptions = {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: !systemConfig.clock_format_24h,
+                    timeZone: systemConfig.timezone
+                };
+                
+                // Date formatting based on configuration options
+                const dateOptions = {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    timeZone: systemConfig.timezone
+                };
+                
+                clockEl.textContent = now.toLocaleTimeString(systemConfig.date_locale, clockOptions);
+                dateEl.textContent = now.toLocaleDateString(systemConfig.date_locale, dateOptions);
+                
+                const currentHour = now.getHours();
+                if (currentHour >= 20 || currentHour < 6) {
+                    document.documentElement.style.setProperty('--kiosk-brightness', '35%');
+                } else {
+                    document.documentElement.style.setProperty('--kiosk-brightness', '100%');
+                }
+            }
+            update();
+            setInterval(update, 1000);
+        }
+
+        // Initialize display execution
+        async function init() {
+            // Setup layout rules and resize bounds listeners
+            layoutEngine();
+            window.addEventListener('resize', layoutEngine);
+
+            // Fetch external config maps and start processes
+            await loadConfig();
+            startClock();
+            fetchBingWallpapers();
+
+            // Set up our slide dynamic time rotation natively (converting minutes into ms)
+            const rotationMs = systemConfig.rotation_timeout_minutes * 60 * 1000;
+            rotationTimer = setInterval(rotateImage, rotationMs); 
+
+            // Re-sync with Bing server updates every 6 hours
+            setInterval(fetchBingWallpapers, 21600000); 
+        }
+
+        init();
+    </script>
+</body>
+</html>
