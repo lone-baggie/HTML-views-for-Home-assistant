@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Standalone Bing Photo Screensaver</title>
+    <title>Bing Screensaver</title>
     <style>
         :root {
             --text-color: #ffffff;
@@ -62,19 +62,19 @@
             z-index: 0;
         }
 
-        /* Ambient dark vignette scrim to make the font pop (No blur!) */
+        /* Ambient dark vignette scrim to make the font pop */
         .scrim {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
+            background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.7) 100%);
             z-index: 3;
             pointer-events: none;
         }
 
-        /* Heads Up Display Overlay - Bottom Aligned Only */
+        /* Heads Up Display Overlay */
         .hud-container {
             position: absolute;
             top: 0;
@@ -83,43 +83,48 @@
             height: 100%;
             z-index: 4;
             display: flex;
-            flex-direction: column;
-            justify-content: flex-end; /* Keeps everything locked to the floor */
-            align-items: flex-start;   /* Aligns all HUD elements cleanly to the left */
+            flex-direction: row;       
+            justify-content: flex-start; 
+            align-items: flex-end;     
             pointer-events: none;
-        }
-
-        /* Row layout to line up time and date perfectly */
-        .time-box {
-            display: flex;
-            flex-direction: row;
-            align-items: flex-end; /* Formats their baselines to sit on the same line */
-            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            width: 100%;
-            flex-wrap: wrap;
         }
 
         .clock-display {
             font-weight: 700;
-            line-height: 0.9; /* Tighter bounding box for baseline alignment */
-            letter-spacing: -1px;
+            line-height: 0.82; 
+            letter-spacing: -2px; 
+            text-align: left;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+
+        /* The right-hand column containing Date (top) and Description (bottom) */
+        .info-stack {
+            display: flex;
+            flex-direction: column;   
+            align-items: flex-start;  
+            justify-content: flex-end;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.8);
         }
 
         .date-display {
             font-weight: 400;
             color: rgba(255, 255, 255, 0.9);
+            text-align: left;
+            line-height: 1.1;
+            white-space: nowrap;
         }
 
-        /* Discreet copyright credit line now nested directly under time and date */
+        /* Description line pinned cleanly under the date */
         .copyright-credit {
             font-family: monospace;
-            color: rgba(255, 255, 255, 0.5);
-            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            color: rgba(255, 255, 255, 0.6);
             pointer-events: none;
-            max-width: 90%;
+            max-width: 100%;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            text-align: left;
+            line-height: 1.2;
         }
 
         /* Simple loading container overlay */
@@ -139,39 +144,52 @@
 </head>
 <body>
 
-    <div id="boot-gate" class="boot-screen">Reading local configuration maps...</div>
+    <div id="boot-gate" class="boot-screen">Checking Engine Manifest...</div>
 
-    <!-- Background safety net -->
     <div class="fallback-gradient"></div>
 
-    <!-- Dual stages for double-buffered image crossfading -->
     <div id="stage-a" class="stage"></div>
     <div id="stage-b" class="stage"></div>
     <div class="scrim"></div>
 
-    <!-- Bottom HUD elements (Time, Date, and Credit all grouped to the left) -->
     <div class="hud-container" id="hud-frame">
-        <div class="time-box" id="time-row">
-            <span class="clock-display" id="clock">00:00</span>
+        <span class="clock-display" id="clock">00:00</span>
+        
+        <div class="info-stack" id="meta-stack">
             <span class="date-display" id="date">Loading Date...</span>
+            <div class="copyright-credit" id="image-credit">Bing Daily Wallpaper</div>
         </div>
-        <div class="copyright-credit" id="image-credit">Bing Daily Wallpaper</div>
     </div>
 
     <script>
+        /* 
+           THE CACHE BUSTER ENGINE 
+           Executed immediately before the DOM starts rendering image data.
+        */
+        (function() {
+            const currentUrl = new URL(window.location.href);
+            
+            if (!currentUrl.searchParams.has('cb')) {
+                const cacheBusterToken = Date.now();
+                currentUrl.searchParams.set('cb', cacheBusterToken);
+                window.location.replace(currentUrl.toString());
+            }
+        })();
+
         const stageA = document.getElementById('stage-a');
         const stageB = document.getElementById('stage-b');
         const bootGate = document.getElementById('boot-gate');
         const clockEl = document.getElementById('clock');
         const dateEl = document.getElementById('date');
         const creditEl = document.getElementById('image-credit');
+        const metaStackEl = document.getElementById('meta-stack');
         
         let currentStage = stageA;
         let wallpaperList = [];
         let activeWallIndex = 0;
         let rotationTimer = null;
 
-        // Fallback options in case JSON parsing hits an exception
+        // Base Fallback Configuration Parameters (Will be overridden by JSON file)
         let systemConfig = {
             rotation_timeout_minutes: 5,
             clock_format_24h: true,
@@ -179,69 +197,77 @@
             timezone: "Europe/London"
         };
 
-        /* 
-           The Embedded Layout Engine:
-           Calculates active window viewport bounds and assigns absolute pixel
-           dimensions to maintain perfect baseline font alignment.
-        */
+        // Reads system configuration options out of the external tracking manifest
+        async function loadExternalConfiguration() {
+            try {
+                // Appending a timestamp query string keeps the browser from caching the json structure natively
+                const response = await fetch(`bing_config.json?t=${Date.now()}`);
+                if (!response.ok) throw new Error(`HTTP target exception: Status ${response.status}`);
+                
+                const data = await response.json();
+                if (data && data.system_config) {
+                    systemConfig = { ...systemConfig, ...data.system_config };
+                    console.log("Configuration Engine parsed successfully:", systemConfig);
+                }
+            } catch (err) {
+                console.warn("Could not read configuration file. Reverting to internal defaults.", err);
+            }
+        }
+
+        // Calculates exact dimensions based on screen geometry to keep text perfectly aligned
         function layoutEngine() {
             const displayW = window.innerWidth;
             const displayH = window.innerHeight;
             const layoutScale = Math.min(displayW, displayH);
 
-            const paddingSide = Math.round(layoutScale * 0.05);
-            const paddingBottom = Math.round(layoutScale * 0.025);
-            const itemsGap = Math.round(layoutScale * 0.03);
+            const paddingSide = Math.round(displayW * 0.02); 
+            const paddingBottom = Math.round(layoutScale * 0.012);
+            const horizontalGap = Math.round(layoutScale * 0.03);
 
             const hudFrame = document.getElementById('hud-frame');
             hudFrame.style.padding = `${paddingBottom}px ${paddingSide}px ${paddingBottom}px ${paddingSide}px`;
+            hudFrame.style.gap = `${horizontalGap}px`;
 
-            const timeRow = document.getElementById('time-row');
-            timeRow.style.gap = `${itemsGap}px`;
+            // Adjust layout slightly to drop the text scaling down a small fraction if the AM/PM tag stretches the layout boundaries
+            const clockScaleFactor = systemConfig.clock_format_24h ? 0.16 : 0.13;
 
-            clockEl.style.fontSize = `${Math.round(layoutScale * 0.15)}px`;
-            dateEl.style.fontSize = `${Math.round(layoutScale * 0.045)}px`;
-            dateEl.style.paddingBottom = `${Math.round(layoutScale * 0.012)}px`;
+            clockEl.style.fontSize = `${Math.round(layoutScale * clockScaleFactor)}px`;
+            dateEl.style.fontSize = `${Math.round(layoutScale * 0.042)}px`;
             
-            creditEl.style.fontSize = `${Math.round(layoutScale * 0.015)}px`;
-            creditEl.style.marginTop = `${Math.round(layoutScale * 0.012)}px`;
+            creditEl.style.fontSize = `${Math.round(layoutScale * 0.022)}px`;
+            creditEl.style.marginTop = `${Math.round(layoutScale * 0.014)}px`;
+            metaStackEl.style.paddingBottom = `${Math.round(layoutScale * 0.016)}px`;
         }
 
-        /*
-           JSON Bootstrapping Worker:
-           Pulls bing_config.json from local disk and overrides defaults before initiating display loops.
-        */
-        async function loadConfig() {
-            try {
-                const response = await fetch('bing_config.json');
-                if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to grab configuration file.`);
-                
-                const data = await response.json();
-                if (data && data.system_config) {
-                    systemConfig = { ...systemConfig, ...data.system_config };
-                    console.log("Config loaded successfully:", systemConfig);
+        // Tries primary proxy, then fails over to secondary proxy if network fails
+        async function fetchWithProxyFallback(targetUrl) {
+            const proxies = [
+                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+            ];
+
+            for (let i = 0; i < proxies.length; i++) {
+                try {
+                    const proxiedUrl = proxies[i](targetUrl);
+                    const response = await fetch(proxiedUrl);
+                    if (!response.ok) throw new Error(`Proxy ${i} returned status ${response.status}`);
+                    return await response.json();
+                } catch (err) {
+                    console.warn(`Proxy channel ${i} failed, attempting next route...`, err);
                 }
-            } catch (err) {
-                console.warn("Could not parse config file, applying hardcoded system fallbacks.", err);
             }
+            throw new Error("All public proxy vectors exhausted.");
         }
 
-        /* 
-           Multi-Page Bing Crawler:
-           Fires off parallel asynchronous requests to page through 16 days of Bing history,
-           merges them, de-duplicates, and loads them into our carousel.
-        */
+        // Hits the external Bing daily endpoints directly from the browser
         async function fetchBingWallpapers() {
             const apiPage1 = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=en-US";
             const apiPage2 = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=8&n=8&mkt=en-US";
 
-            const proxyUrl1 = `https://corsproxy.io/?${encodeURIComponent(apiPage1)}`;
-            const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(apiPage2)}`;
-
             try {
                 const [response1, response2] = await Promise.all([
-                    fetch(proxyUrl1).then(res => res.json()),
-                    fetch(proxyUrl2).then(res => res.json())
+                    fetchWithProxyFallback(apiPage1),
+                    fetchWithProxyFallback(apiPage2)
                 ]);
 
                 const batch1 = response1?.images || [];
@@ -265,10 +291,11 @@
                     wallpaperList = uniqueImages;
                     rotateImage();
                 } else {
-                    throw new Error("Empty image manifests returned from Bing API pages.");
+                    throw new Error("Empty image manifests.");
                 }
             } catch (err) {
-                console.warn("Unable to fetch remote Bing archives. Dropping back to default local assets.", err);
+                console.error("Network down or proxies rate-limited. Booting Scenic Fallback Mode.", err);
+                
                 wallpaperList = Array.from({length: 16}, (_, i) => ({
                     url: `https://picsum.photos/id/${[10, 29, 43, 48, 56, 76, 96, 124, 133, 145, 163, 175, 188, 197, 212, 230][i]}/${window.innerWidth}/${window.innerHeight}`,
                     copyright: "Scenic Landscape (Local Fallback Mode)"
@@ -277,7 +304,7 @@
             }
         }
 
-        // Double-buffered crossfade rotation engine
+        // Fades between hidden image layers using the DOM for smooth transitions
         function rotateImage() {
             if (wallpaperList.length === 0) return;
 
@@ -301,7 +328,6 @@
             };
 
             imgLoader.onerror = () => {
-                console.log("Image preloader failed. Retrying in next cycle.");
                 dismissBootScreen();
                 activeWallIndex = (activeWallIndex + 1) % wallpaperList.length;
             };
@@ -314,12 +340,12 @@
             }
         }
 
-        // Clock daemon with night shift dimming logic using dynamic timezone and formatting configurations
+        // Keeps local time active and updates screen dimming thresholds for evening hours
         function startClock() {
             function update() {
                 const now = new Date();
                 
-                // Clock formatting based on configuration options
+                // Using standard options allows toLocaleTimeString to natively map AM/PM suffixes
                 const clockOptions = {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -327,7 +353,6 @@
                     timeZone: systemConfig.timezone
                 };
                 
-                // Date formatting based on configuration options
                 const dateOptions = {
                     weekday: 'long',
                     day: 'numeric',
@@ -349,22 +374,30 @@
             setInterval(update, 1000);
         }
 
-        // Initialize display execution
+        // Flushes internal browser state completely once every 6 hours 
+        function setupHardReloadDaemon() {
+            setInterval(() => {
+                const cleanUrl = new URL(window.location.origin + window.location.pathname);
+                window.location.replace(cleanUrl.toString());
+            }, 21600000); 
+        }
+
+        // Initialize display loop routines
         async function init() {
-            // Setup layout rules and resize bounds listeners
+            // Wait for configuration parsing before initializing clock formats and layout engines
+            await loadExternalConfiguration();
+
             layoutEngine();
             window.addEventListener('resize', layoutEngine);
 
-            // Fetch external config maps and start processes
-            await loadConfig();
             startClock();
             fetchBingWallpapers();
+            setupHardReloadDaemon();
 
-            // Set up our slide dynamic time rotation natively (converting minutes into ms)
+            // Set up interval dynamically based on parsed parameters
             const rotationMs = systemConfig.rotation_timeout_minutes * 60 * 1000;
             rotationTimer = setInterval(rotateImage, rotationMs); 
 
-            // Re-sync with Bing server updates every 6 hours
             setInterval(fetchBingWallpapers, 21600000); 
         }
 

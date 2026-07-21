@@ -62,15 +62,15 @@
             white-space: nowrap;
         }
 
-        /* --- Scrolling High-Contrast Row Pipeline --- */
+        /* --- High-Contrast 2-Column Grid Pipeline --- */
         .todo-list {
             list-style: none;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            align-content: start;
             overflow-y: auto;
             flex-grow: 1;
             width: 100%;
-            /* Custom scrollbar hiding to maintain clean kiosk look */
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
@@ -79,16 +79,44 @@
             display: none;
         }
 
+        /* --- The Marquee Window Mask --- */
         .todo-item {
             background-color: var(--card-color);
             border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            font-weight: 500;
+            font-weight: 700;
             width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .todo-item span {
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            
+            /* THE LINE LIFT FIX: 
+               Forcefully move the text layer up slightly to pull descenders out of the danger zone.
+               We compose the translation with our marquee animation variables down in the JS engine. */
+            transform: translateY(-4px); 
+            
+            line-height: 1.2;
+        }
+
+        /* --- The CSS Scrolling Keyframe Engine --- */
+        /* Fixed keyframes to provide perfectly symmetric forward/backward travel with 10% pauses */
+        @keyframes cell-marquee {
+            0%   { transform: translate(0, -4px); }
+            10%  { transform: translate(0, -4px); }                        /* Hold at start */
+            45%  { transform: translate(var(--scroll-distance, -50%), -4px); } /* Arrive at end */
+            55%  { transform: translate(var(--scroll-distance, -50%), -4px); } /* Hold at end */
+            90%  { transform: translate(0, -4px); }                        /* Arrive back at start smoothly */
+            100% { transform: translate(0, -4px); }                        /* Hold at start before loop resets */
         }
 
         .empty-msg {
+            grid-column: span 2;
             text-align: center;
             color: #52525b;
             font-weight: 600;
@@ -183,7 +211,6 @@
     </div>
 
     <script>
-        // --- Core Environment Configuration ---
         const HA_URL = window.location.origin; 
         
         let FULL_CONFIG = null;
@@ -198,56 +225,66 @@
         const panelTitleText = document.getElementById('panel-title-text');
         const gateMessage = document.getElementById('gate-message');
 
-        /* 
-           The Sandboxed Layout Engine:
-           Calculates screen boundaries on execution and forces layout parameters
-           to adapt using absolute pixel scaling calculations.
-        */
         function layoutEngine() {
             const displayW = window.innerWidth;
             const displayH = window.innerHeight;
-            
-            // Reference layout scaling off the shortest screen axis
             const layoutScale = Math.min(displayW, displayH);
             
-            // Compute scale metrics based on environment dimensions
             const framePadding = Math.round(layoutScale * 0.04);
-            const entryGap = Math.round(layoutScale * 0.02);
-            const rowRadius = Math.round(layoutScale * 0.015);
+            const entryGap = Math.round(layoutScale * 0.03); 
+            const rowRadius = Math.round(layoutScale * 0.02); 
             
-            // Standardize Master Layout Boundaries
             const mainContainer = document.getElementById('main-container');
             mainContainer.style.padding = `${framePadding}px`;
             
-            // Scale Header Properties
             const mainHeader = document.getElementById('main-header');
-            mainHeader.style.marginBottom = `${Math.round(layoutScale * 0.03)}px`;
-            mainHeader.style.paddingBottom = `${Math.round(layoutScale * 0.02)}px`;
-            mainHeader.style.borderBottomWidth = `${Math.round(layoutScale * 0.004) || 1}px`;
+            mainHeader.style.marginBottom = `${Math.round(layoutScale * 0.04)}px`;
+            mainHeader.style.paddingBottom = `${Math.round(layoutScale * 0.025)}px`;
+            mainHeader.style.borderBottomWidth = `${Math.round(layoutScale * 0.005) || 1}px`;
             
-            // Adjust Header Text Elements
-            panelTitleText.style.fontSize = `${Math.round(layoutScale * 0.065)}px`;
+            // Reduced title scale slightly from 0.11 to 0.09
+            panelTitleText.style.fontSize = `${Math.round(layoutScale * 0.09)}px`;
             
-            // Adjust Counter Badge Sizing
-            itemCount.style.fontSize = `${Math.round(layoutScale * 0.035)}px`;
-            itemCount.style.padding = `${Math.round(layoutScale * 0.008)}px ${Math.round(layoutScale * 0.025)}px`;
-            itemCount.style.borderRadius = `${Math.round(layoutScale * 0.04)}px`;
+            itemCount.style.fontSize = `${Math.round(layoutScale * 0.05)}px`;
+            itemCount.style.padding = `${Math.round(layoutScale * 0.01)}px ${Math.round(layoutScale * 0.03)}px`;
+            itemCount.style.borderRadius = `${Math.round(layoutScale * 0.05)}px`;
             
-            // Scale Main List Inter-Row Gaps
             listContainer.style.gap = `${entryGap}px`;
             
-            // Intercept and scale active child list entries
             document.querySelectorAll('.todo-item').forEach(row => {
-                row.style.padding = `${Math.round(layoutScale * 0.028)}px ${Math.round(layoutScale * 0.04)}px`;
+                row.style.padding = `${Math.round(layoutScale * 0.055)}px ${Math.round(layoutScale * 0.05)}px`;
                 row.style.borderRadius = `${rowRadius}px`;
-                row.style.fontSize = `${Math.round(layoutScale * 0.045)}px`;
-                row.style.borderWidth = `${Math.round(layoutScale * 0.002) || 1}px`;
+                row.style.borderWidth = `${Math.round(layoutScale * 0.003) || 1}px`;
+                
+                // Reduced list item font scale from 0.13 to 0.10
+                row.style.fontSize = `${Math.round(layoutScale * 0.10)}px`; 
+
+                const textSpan = row.querySelector('span');
+                if (textSpan) {
+                    const rawText = textSpan.textContent || "";
+                    const availableWidth = row.clientWidth - (Math.round(layoutScale * 0.05) * 2);
+                    const textWidth = textSpan.offsetWidth;
+
+                    if (rawText.length > 9 || textWidth > availableWidth) {
+                        const scrollDistance = availableWidth - textWidth;
+                        const finalDistance = scrollDistance < 0 ? scrollDistance : -10;
+                        
+                        textSpan.style.setProperty('--scroll-distance', `${finalDistance}px`);
+                        
+                        const dynamicDuration = Math.max(6, Math.round(textWidth / 40));
+                        textSpan.style.animation = `cell-marquee ${dynamicDuration}s linear infinite`;
+                    } else {
+                        textSpan.style.animation = 'none';
+                        // Ensure standard items maintain the lift offset when not marquee-scrolling
+                        textSpan.style.transform = 'translateY(-4px)';
+                    }
+                }
             });
             
-            // Intercept empty messages
             const emptyMessage = document.querySelector('.empty-msg');
             if (emptyMessage) {
-                emptyMessage.style.fontSize = `${Math.round(layoutScale * 0.05)}px`;
+                // Reduced empty message scale from 0.08 to 0.06
+                emptyMessage.style.fontSize = `${Math.round(layoutScale * 0.06)}px`;
                 emptyMessage.style.marginTop = `${Math.round(displayH * 0.2)}px`;
             }
         }
@@ -257,15 +294,15 @@
             debugLog.textContent = `[System Panic] ${context}\nException Summary: ${err.message || err}\n\nStack Trace:\n${err.stack || "No trace available."}`;
         }
 
-        // Bootstrapping phase: Read config maps, then handle tokens
         async function bootstrapApplication() {
-            // Apply layout engine processing straight out of cold boot
             layoutEngine();
             window.addEventListener('resize', layoutEngine);
 
             try {
-                const response = await fetch('shopping_config.json');
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}: Failed to read shopping_config.json`);
+                const cacheBusterUrl = `shopping_config.json?v=${new Date().getTime()}`;
+                const response = await fetch(cacheBusterUrl);
+                
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}: Failed to read config maps`);
                 
                 FULL_CONFIG = await response.json();
                 
@@ -280,7 +317,7 @@
                 }
             } catch (err) {
                 setupGate.style.display = 'flex';
-                gateMessage.innerHTML = `<span style="color: #ef4444; font-weight: bold;">Config Map Error: Check browser console or file locations.</span>`;
+                gateMessage.innerHTML = `<span style="color: #ef4444; font-weight: bold;">Config Map Error: Check JSON structure or local cache chains.</span>`;
                 printStackTrace(err, "Bootstrap Execution Failure (JSON loader broken)");
             }
         }
@@ -288,13 +325,12 @@
         async function tryLoadingTokenFromFile() {
             try {
                 if (!FULL_CONFIG.token_configuration || !FULL_CONFIG.token_configuration.filename) {
-                    throw new Error("JSON structure missing token_configuration.filename map target.");
+                    throw new Error("JSON structure missing token config mappings.");
                 }
 
-                const tokenFilename = FULL_CONFIG.token_configuration.filename; 
-                
+                const tokenFilename = `${FULL_CONFIG.token_configuration.filename}?v=${new Date().getTime()}`; 
                 const response = await fetch(tokenFilename);
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}: Path '${tokenFilename}' missing or unreachable.`);
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}: Path missing.`);
                 
                 const text = await response.text();
                 const cleanToken = text.trim();
@@ -305,12 +341,12 @@
                     setupGate.style.display = 'none';
                     startPollingEngine();
                 } else {
-                    throw new Error(`Token extracted out of '${tokenFilename}' was empty.`);
+                    throw new Error(`Token file extraction yielded empty payload.`);
                 }
             } catch (err) {
                 setupGate.style.display = 'flex';
                 setupManualTokenInputListener();
-                console.warn("Token file pipeline failed, falling back to manual entry interface:", err.message);
+                console.warn("Token initialization failure, reverting to manual console form:", err.message);
             }
         }
 
@@ -349,7 +385,7 @@
 
                 if (response.type === "auth_invalid") {
                     localStorage.removeItem('ha_secure_token');
-                    alert("Token rejected by Home Assistant. Please refresh and re-authenticate.");
+                    alert("Token validation failed. Re-authenticating panel.");
                     window.location.reload();
                 }
 
@@ -383,7 +419,7 @@
             };
 
             socket.onerror = (error) => {
-                console.error("WebSocket Pipeline Crash:", error);
+                console.error("WebSocket Pipeline Failure:", error);
                 listContainer.innerHTML = `<li class="empty-msg" style="color: #ef4444;">API Connection Failed</li>`;
                 printStackTrace(error, "WebSocket transport failure over route: " + wsUrl);
             };
@@ -404,11 +440,9 @@
                 });
             }
 
-            // Fire layout engine calculations to scale newly generated rows immediately
             layoutEngine();
         }
 
-        // Run system initializations
         bootstrapApplication();
     </script>
 </body>
