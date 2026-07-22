@@ -18,7 +18,7 @@ By keeping UI layouts rendered via HTML/JSON served directly from your Home Assi
 | **`alarms.html`**     | View        | Alarms      | Alarm panel showing upcoming alarms.                               |
 | **`shopping.html`**   | View        | TODO        | Large view shopping list                                           |
 | **`bing.html`**       | View        | Screensaver | Bing's screensaver shows entire archive from 2019 to date          |
-| **`switch.html`**     | Interactive | Media       | 6 switch interface . Allow configuration of switch name and icon   |
+| **`switch.html`**     | Interactive | Switch      | 6 switch interface . Allow configuration of switch name and icon   |
 
 ---
 
