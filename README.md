@@ -2,7 +2,7 @@
 
 Welcome to the **HTML Views for Home Assistant** repository! 
 
-This project provides a collection of lightweight, standalone HTML views and corresponding JSON configuration files designed to embed seamlessly into directly on smart remote devices like **Ava Plus** or wall panels.
+This project provides a collection of lightweight, standalone HTML views and corresponding JSON configuration files designed to embed seamlessly into web browsers on smart remote devices.
 
 By keeping UI layouts rendered via HTML/JSON served directly from your Home Assistant local web server (`/config/www/`), you get fast, smooth updates without heavy dashboard overhead.
 
@@ -17,8 +17,8 @@ By keeping UI layouts rendered via HTML/JSON served directly from your Home Assi
 | **`weather.html`**    | View        | Weather     | Daily weather forecast                                             |
 | **`alarms.html`**     | View        | Alarms      | Alarm panel showing upcoming alarms.                               |
 | **`shopping.html`**   | View        | TODO        | Large view shopping list                                           |
-| **`bing.html`**       | View        | Screensaver | Bing's screensaver shows last 16 daily images                      |
-| **`radio.html`**      | Interactive | Media       | 6 switch interface . Allow configuration of switch name and icon |
+| **`bing.html`**       | View        | Screensaver | Bing's screensaver shows entire archive from 2019 to date          |
+| **`radio.html`**      | Interactive | Media       | 6 switch interface . Allow configuration of switch name and icon   |
 
 ---
 
