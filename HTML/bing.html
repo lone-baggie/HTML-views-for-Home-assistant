@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Bing Screensaver</title>
+    <title>Bing Daily Wallpaper Dashboard</title>
     <style>
         :root {
             --text-color: #ffffff;
@@ -15,6 +15,8 @@
             margin: 0;
             padding: 0;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Disables touch gestures entirely */
         }
 
         html, body {
@@ -25,10 +27,11 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
             color: var(--text-color);
             filter: brightness(var(--kiosk-brightness));
             transition: filter 2s ease-in-out;
+            cursor: default;
         }
 
         /* Fullscreen photo stages */
@@ -62,7 +65,7 @@
             z-index: 0;
         }
 
-        /* Ambient dark vignette scrim to make the font pop */
+        /* Dark vignette scrim for text contrast */
         .scrim {
             position: absolute;
             top: 0;
@@ -72,6 +75,7 @@
             background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.7) 100%);
             z-index: 3;
             pointer-events: none;
+            transition: opacity 10s ease-in-out;
         }
 
         /* Heads Up Display Overlay */
@@ -87,88 +91,110 @@
             justify-content: flex-start; 
             align-items: flex-end;     
             pointer-events: none;
+            opacity: 1;
+            transition: opacity 10s ease-in-out;
+        }
+
+        /* Class toggled by JS to trigger 10-second fade out */
+        .hud-container.fade-out,
+        .scrim.fade-out {
+            opacity: 0;
+        }
+
+        /* Left Column: Clock only */
+        .clock-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-end;
         }
 
         .clock-display {
             font-weight: 700;
-            line-height: 0.82; 
+            line-height: 0.8; 
             letter-spacing: -2px; 
             text-align: left;
             text-shadow: 0 4px 20px rgba(0,0,0,0.8);
         }
 
-        /* The right-hand column containing Date (top) and Description (bottom) */
+        /* Right Column: Day/Date + Description Stack */
         .info-stack {
             display: flex;
             flex-direction: column;   
-            align-items: flex-start;  
+            align-items: flex-start;
             justify-content: flex-end;
             text-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            padding-bottom: 0;
+            max-width: 100%;
         }
 
         .date-display {
-            font-weight: 400;
-            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.95);
             text-align: left;
-            line-height: 1.1;
+            line-height: 1.2;
             white-space: nowrap;
         }
 
-        /* Description line pinned cleanly under the date */
-        .copyright-credit {
-            font-family: monospace;
-            color: rgba(255, 255, 255, 0.6);
+        /* Container for the 2-line description stack */
+        .copyright-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
             pointer-events: none;
             max-width: 100%;
+        }
+
+        /* Shared styling for both lines of description */
+        .copyright-title,
+        .copyright-credit {
+            font-family: monospace;
+            color: rgba(255, 255, 255, 0.85);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             text-align: left;
             line-height: 1.2;
+            max-width: 100%;
         }
 
-        /* Simple loading container overlay */
-        .boot-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #0f0f11;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            font-size: 1.3rem;
-            transition: opacity 1s ease;
-            color: #a1a1aa;
+        /* Lower opacity on line 2 for visual hierarchy */
+        .copyright-credit {
+            color: rgba(255, 255, 255, 0.65);
         }
     </style>
 </head>
 <body>
 
-    <div id="boot-gate" class="boot-screen">Checking Engine Manifest...</div>
-
     <div class="fallback-gradient"></div>
 
     <div id="stage-a" class="stage"></div>
     <div id="stage-b" class="stage"></div>
-    <div class="scrim"></div>
+    <div class="scrim" id="scrim-overlay"></div>
 
     <div class="hud-container" id="hud-frame">
-        <span class="clock-display" id="clock">00:00</span>
+        <!-- Left Column: Clock -->
+        <div class="clock-stack" id="clock-stack">
+            <span class="clock-display" id="clock">00:00</span>
+        </div>
         
+        <!-- Right Column: Date + Description Stack -->
         <div class="info-stack" id="meta-stack">
-            <span class="date-display" id="date">Loading Date...</span>
-            <div class="copyright-credit" id="image-credit">Bing Daily Wallpaper</div>
+            <span class="date-display" id="date"></span>
+            
+            <div class="copyright-stack" id="credit-container">
+                <div class="copyright-title" id="image-title">Bing Daily Wallpaper</div>
+                <div class="copyright-credit" id="image-credit"></div>
+            </div>
         </div>
     </div>
 
     <script>
         /* 
-           THE CACHE BUSTER ENGINE 
-           Executed immediately before the DOM starts rendering image data.
+           Cache-Buster Execution 
         */
         (function() {
             const currentUrl = new URL(window.location.href);
-            
             if (!currentUrl.searchParams.has('cb')) {
                 const cacheBusterToken = Date.now();
                 currentUrl.searchParams.set('cb', cacheBusterToken);
@@ -178,43 +204,49 @@
 
         const stageA = document.getElementById('stage-a');
         const stageB = document.getElementById('stage-b');
-        const bootGate = document.getElementById('boot-gate');
+        const clockStackEl = document.getElementById('clock-stack');
         const clockEl = document.getElementById('clock');
         const dateEl = document.getElementById('date');
+        const titleEl = document.getElementById('image-title');
         const creditEl = document.getElementById('image-credit');
+        const creditContainerEl = document.getElementById('credit-container');
         const metaStackEl = document.getElementById('meta-stack');
+        const hudFrameEl = document.getElementById('hud-frame');
+        const scrimEl = document.getElementById('scrim-overlay');
         
         let currentStage = stageA;
-        let wallpaperList = [];
-        let activeWallIndex = 0;
+        let masterWallpaperDeck = [];
         let rotationTimer = null;
+        let fadeTimer = null;
 
-        // Base Fallback Configuration Parameters (Will be overridden by JSON file)
+        // Default Configuration
         let systemConfig = {
-            rotation_timeout_minutes: 5,
+            slide_duration_minutes: 1,
             clock_format_24h: true,
             date_locale: "en-GB",
-            timezone: "Europe/London"
+            timezone: "Europe/London",
+            wallpaper_regions: [],
+            show_clock: true,
+            show_day: true,
+            show_date: true,
+            show_description: true,
+            fade_text: true
         };
 
-        // Reads system configuration options out of the external tracking manifest
         async function loadExternalConfiguration() {
             try {
-                // Appending a timestamp query string keeps the browser from caching the json structure natively
                 const response = await fetch(`bing_config.json?t=${Date.now()}`);
-                if (!response.ok) throw new Error(`HTTP target exception: Status ${response.status}`);
-                
-                const data = await response.json();
-                if (data && data.system_config) {
-                    systemConfig = { ...systemConfig, ...data.system_config };
-                    console.log("Configuration Engine parsed successfully:", systemConfig);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.system_config) {
+                        systemConfig = { ...systemConfig, ...data.system_config };
+                    }
                 }
             } catch (err) {
-                console.warn("Could not read configuration file. Reverting to internal defaults.", err);
+                // Silently fallback to systemConfig defaults
             }
         }
 
-        // Calculates exact dimensions based on screen geometry to keep text perfectly aligned
         function layoutEngine() {
             const displayW = window.innerWidth;
             const displayH = window.innerHeight;
@@ -224,144 +256,347 @@
             const paddingBottom = Math.round(layoutScale * 0.012);
             const horizontalGap = Math.round(layoutScale * 0.03);
 
-            const hudFrame = document.getElementById('hud-frame');
-            hudFrame.style.padding = `${paddingBottom}px ${paddingSide}px ${paddingBottom}px ${paddingSide}px`;
-            hudFrame.style.gap = `${horizontalGap}px`;
-
-            // Adjust layout slightly to drop the text scaling down a small fraction if the AM/PM tag stretches the layout boundaries
-            const clockScaleFactor = systemConfig.clock_format_24h ? 0.16 : 0.13;
-
-            clockEl.style.fontSize = `${Math.round(layoutScale * clockScaleFactor)}px`;
-            dateEl.style.fontSize = `${Math.round(layoutScale * 0.042)}px`;
+            hudFrameEl.style.padding = `${paddingBottom}px ${paddingSide}px ${paddingBottom}px ${paddingSide}px`;
             
-            creditEl.style.fontSize = `${Math.round(layoutScale * 0.022)}px`;
-            creditEl.style.marginTop = `${Math.round(layoutScale * 0.014)}px`;
-            metaStackEl.style.paddingBottom = `${Math.round(layoutScale * 0.016)}px`;
-        }
-
-        // Tries primary proxy, then fails over to secondary proxy if network fails
-        async function fetchWithProxyFallback(targetUrl) {
-            const proxies = [
-                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-                (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-            ];
-
-            for (let i = 0; i < proxies.length; i++) {
-                try {
-                    const proxiedUrl = proxies[i](targetUrl);
-                    const response = await fetch(proxiedUrl);
-                    if (!response.ok) throw new Error(`Proxy ${i} returned status ${response.status}`);
-                    return await response.json();
-                } catch (err) {
-                    console.warn(`Proxy channel ${i} failed, attempting next route...`, err);
-                }
+            // Toggle clock column visibility
+            if (systemConfig.show_clock) {
+                clockStackEl.style.display = 'flex';
+                hudFrameEl.style.gap = `${horizontalGap}px`;
+            } else {
+                clockStackEl.style.display = 'none';
+                hudFrameEl.style.gap = `0px`;
             }
-            throw new Error("All public proxy vectors exhausted.");
+
+            // Toggle date visibility
+            const showDateRow = systemConfig.show_day || systemConfig.show_date;
+            dateEl.style.display = showDateRow ? 'block' : 'none';
+
+            // Toggle description visibility
+            if (systemConfig.show_description) {
+                creditContainerEl.style.display = 'flex';
+            } else {
+                creditContainerEl.style.display = 'none';
+            }
+
+            // Hide the right stack altogether if date and description are both hidden
+            if (showDateRow || systemConfig.show_description) {
+                metaStackEl.style.display = 'flex';
+            } else {
+                metaStackEl.style.display = 'none';
+            }
+
+            const clockScaleFactor = systemConfig.clock_format_24h ? 0.16 : 0.13;
+            const creditFontSizeNumber = layoutScale * 0.022;
+
+            // Font sizing
+            clockEl.style.fontSize = `${Math.round(layoutScale * clockScaleFactor)}px`;
+            dateEl.style.fontSize = `${Math.round(layoutScale * 0.032)}px`;
+            
+            titleEl.style.fontSize = `${Math.round(creditFontSizeNumber)}px`;
+            creditEl.style.fontSize = `${Math.round(creditFontSizeNumber * 0.85)}px`;
+            
+            // Spacing between date and description title
+            if (showDateRow && systemConfig.show_description) {
+                creditContainerEl.style.marginTop = `${Math.round(layoutScale * 0.008)}px`;
+            } else {
+                creditContainerEl.style.marginTop = `0px`;
+            }
+            
+            metaStackEl.style.paddingBottom = `0px`;
         }
 
-        // Hits the external Bing daily endpoints directly from the browser
-        async function fetchBingWallpapers() {
-            const apiPage1 = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=en-US";
-            const apiPage2 = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=8&n=8&mkt=en-US";
-
+        /**
+         * Fetch single JSON file helper returning parsed data array or empty array on failure
+         */
+        async function fetchSingleArchiveFile(url) {
             try {
-                const [response1, response2] = await Promise.all([
-                    fetchWithProxyFallback(apiPage1),
-                    fetchWithProxyFallback(apiPage2)
-                ]);
-
-                const batch1 = response1?.images || [];
-                const batch2 = response2?.images || [];
-                const combinedRaw = [...batch1, ...batch2];
-
-                if (combinedRaw.length > 0) {
-                    const uniqueImages = [];
-                    const seenUrls = new Set();
-
-                    for (const img of combinedRaw) {
-                        if (!seenUrls.has(img.url)) {
-                            seenUrls.add(img.url);
-                            uniqueImages.push({
-                                url: `https://www.bing.com${img.url}`,
-                                copyright: img.copyright
-                            });
-                        }
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Array.isArray(data)) {
+                        return data;
                     }
-
-                    wallpaperList = uniqueImages;
-                    rotateImage();
-                } else {
-                    throw new Error("Empty image manifests.");
                 }
             } catch (err) {
-                console.error("Network down or proxies rate-limited. Booting Scenic Fallback Mode.", err);
-                
-                wallpaperList = Array.from({length: 16}, (_, i) => ({
-                    url: `https://picsum.photos/id/${[10, 29, 43, 48, 56, 76, 96, 124, 133, 145, 163, 175, 188, 197, 212, 230][i]}/${window.innerWidth}/${window.innerHeight}`,
-                    copyright: "Scenic Landscape (Local Fallback Mode)"
-                }));
-                rotateImage();
+                // Return empty array on 404 or network error
+            }
+            return [];
+        }
+
+        /**
+         * Parallelized multi-region archive fetcher with O(1) Hash Set deduplication.
+         * Uses wallpaper_regions from bing_config.json.
+         */
+        async function fetchGitHubArchives() {
+            const targetRegions = new Set();
+
+            // Helper to ensure standard region string format (e.g. en-GB) for Linux/GitHub path matching
+            const sanitizeRegion = (code) => {
+                if (!code || typeof code !== 'string') return null;
+                const parts = code.split('-');
+                if (parts.length === 2) {
+                    return `${parts[0].toLowerCase()}-${parts[1].toUpperCase()}`;
+                }
+                return code;
+            };
+
+            const primaryLocaleRegion = sanitizeRegion(systemConfig.date_locale);
+            if (primaryLocaleRegion) {
+                targetRegions.add(primaryLocaleRegion);
+            }
+
+            if (Array.isArray(systemConfig.wallpaper_regions)) {
+                systemConfig.wallpaper_regions.forEach(code => {
+                    const cleanCode = sanitizeRegion(code);
+                    if (cleanCode) targetRegions.add(cleanCode);
+                });
+            }
+
+            const currentYear = new Date().getFullYear();
+            const startYear = 2019;
+            
+            const fetchUrls = [];
+
+            for (const regionCode of targetRegions) {
+                const localeFile = `bing_${regionCode}.json`;
+
+                // Root recent file
+                fetchUrls.push(`https://raw.githubusercontent.com/zigou23/Bing-Daily-Wallpaper/main/bing/${localeFile}`);
+
+                // Yearly archive files from 2019 to current year
+                for (let year = startYear; year <= currentYear; year++) {
+                    fetchUrls.push(`https://raw.githubusercontent.com/zigou23/Bing-Daily-Wallpaper/main/bing/${year}/${localeFile}`);
+                }
+            }
+
+            const fetchPromises = fetchUrls.map(url => fetchSingleArchiveFile(url));
+            const results = await Promise.allSettled(fetchPromises);
+
+            let rawDeck = [];
+            results.forEach(result => {
+                if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+                    rawDeck = rawDeck.concat(result.value);
+                }
+            });
+
+            // Deduplication via Hash Set
+            const seenUrls = new Set();
+            const uniqueDeck = [];
+
+            for (let i = 0; i < rawDeck.length; i++) {
+                const item = rawDeck[i];
+                const imgUrl = item.url || item.urlbase;
+                if (imgUrl && !seenUrls.has(imgUrl)) {
+                    seenUrls.add(imgUrl);
+                    uniqueDeck.push(item);
+                }
+            }
+
+            if (uniqueDeck.length > 0) {
+                masterWallpaperDeck = uniqueDeck;
+                rotateWallpaper();
+            } else {
+                loadFallbackDeck();
             }
         }
 
-        // Fades between hidden image layers using the DOM for smooth transitions
-        function rotateImage() {
-            if (wallpaperList.length === 0) return;
+        function loadFallbackDeck() {
+            masterWallpaperDeck = Array.from({length: 10}, (_, i) => ({
+                url: `https://picsum.photos/id/${(i * 15 + 10)}/1920/1080`,
+                copyright: `Scenic Fallback Landscape #${i + 1} (© Public Domain)`,
+                date: "20240101"
+            }));
+            rotateWallpaper();
+        }
+
+        /**
+         * Formats image archive raw string "YYYYMMDD" -> "DD-MM-YYYY" or "MM-DD-YYYY"
+         * placing Year at the end, ordered by systemConfig.date_locale
+         */
+        function formatImageDateString(rawDateStr) {
+            if (!rawDateStr || rawDateStr.length !== 8) return '';
+
+            const yearStr = rawDateStr.substring(0, 4);
+            const monthStr = rawDateStr.substring(4, 6);
+            const dayStr = rawDateStr.substring(6, 8);
+
+            const utcDate = new Date(Date.UTC(
+                parseInt(yearStr, 10), 
+                parseInt(monthStr, 10) - 1, 
+                parseInt(dayStr, 10)
+            ));
+
+            const options = { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' };
+            const formatter = new Intl.DateTimeFormat(systemConfig.date_locale, options);
+            const parts = formatter.formatToParts(utcDate);
+
+            let dayVal = dayStr, monthVal = monthStr, yearVal = yearStr;
+            parts.forEach(p => {
+                if (p.type === 'day') dayVal = p.value;
+                if (p.type === 'month') monthVal = p.value;
+                if (p.type === 'year') yearVal = p.value;
+            });
+
+            const sampleString = formatter.format(utcDate);
+            const dayIndex = sampleString.indexOf(dayVal);
+            const monthIndex = sampleString.indexOf(monthVal);
+
+            if (dayIndex !== -1 && monthIndex !== -1 && dayIndex < monthIndex) {
+                return `${dayVal}-${monthVal}-${yearVal}`;
+            } else {
+                return `${monthVal}-${dayVal}-${yearVal}`;
+            }
+        }
+
+        /**
+         * Resets text and scrim opacity, then schedules the half-way fade out
+         */
+        function handleFadeLifecycle() {
+            if (fadeTimer) clearTimeout(fadeTimer);
+
+            // Instantly restore visibility for the new picture
+            hudFrameEl.classList.remove('fade-out');
+            scrimEl.classList.remove('fade-out');
+
+            if (!systemConfig.fade_text) return;
+
+            const totalRotationMs = systemConfig.slide_duration_minutes * 60 * 1000;
+            const halfWayMs = totalRotationMs / 2;
+
+            // Schedule the 10-second CSS fade to start at the halfway point
+            fadeTimer = setTimeout(() => {
+                hudFrameEl.classList.add('fade-out');
+                scrimEl.classList.add('fade-out');
+            }, halfWayMs);
+        }
+
+        /**
+         * Pick a random wallpaper from the master deck and cross-fade
+         */
+        function rotateWallpaper() {
+            if (masterWallpaperDeck.length === 0) return;
+
+            const randomIndex = Math.floor(Math.random() * masterWallpaperDeck.length);
+            const selectedItem = masterWallpaperDeck[randomIndex];
+
+            const rawUrl = selectedItem.url || selectedItem.urlbase;
+            const fullUrl = rawUrl.startsWith('http') ? rawUrl : `https://www.bing.com${rawUrl}`;
+            
+            let fullCopyright = selectedItem.copyright || selectedItem.title || 'Bing Wallpaper';
+            
+            let dateStr = '';
+            if (selectedItem.date && selectedItem.date.length === 8) {
+                const formattedDate = formatImageDateString(selectedItem.date);
+                if (formattedDate) {
+                    dateStr = ` • ${formattedDate}`;
+                }
+            }
+
+            let line1 = fullCopyright;
+            let line2 = '';
+
+            const splitMatch = fullCopyright.match(/(.*?)\s*(\([©\w\s\.\,\-\/]+\)|©.*)/);
+            if (splitMatch && splitMatch[1] && splitMatch[2]) {
+                line1 = splitMatch[1].trim();
+                line2 = splitMatch[2].trim() + dateStr;
+            } else {
+                line2 = dateStr ? dateStr.replace(/^ • /, '') : '';
+            }
+
+            // Strip parentheses from descriptions
+            line1 = line1.replace(/[\(\)]/g, '').trim();
+            line2 = line2.replace(/[\(\)]/g, '').trim();
 
             const nextStage = (currentStage === stageA) ? stageB : stageA;
-            const currentItem = wallpaperList[activeWallIndex];
-            
             const imgLoader = new Image();
-            imgLoader.src = currentItem.url;
+            imgLoader.src = fullUrl;
             
             imgLoader.onload = () => {
-                nextStage.style.backgroundImage = `url('${currentItem.url}')`;
-                creditEl.textContent = currentItem.copyright;
+                nextStage.style.backgroundImage = `url('${fullUrl}')`;
                 
+                titleEl.textContent = line1;
+                creditEl.textContent = line2;
+                creditEl.style.display = line2 ? 'block' : 'none';
+
                 currentStage.classList.remove('active');
                 nextStage.classList.add('active');
                 
                 currentStage = nextStage;
-                dismissBootScreen();
-                
-                activeWallIndex = (activeWallIndex + 1) % wallpaperList.length;
-            };
 
-            imgLoader.onerror = () => {
-                dismissBootScreen();
-                activeWallIndex = (activeWallIndex + 1) % wallpaperList.length;
+                handleFadeLifecycle();
             };
         }
 
-        function dismissBootScreen() {
-            if (bootGate.style.opacity !== '0') {
-                bootGate.style.opacity = '0';
-                setTimeout(() => bootGate.style.display = 'none', 1000);
+        function startSlideshowTimer() {
+            if (rotationTimer) clearInterval(rotationTimer);
+            const rotationMs = systemConfig.slide_duration_minutes * 60 * 1000;
+            
+            rotationTimer = setInterval(() => {
+                rotateWallpaper();
+            }, rotationMs);
+        }
+
+        /**
+         * Formats HUD date based on granularity settings (show_day, show_date)
+         */
+        function getFormattedHeaderDate(now) {
+            const showDay = systemConfig.show_day;
+            const showDate = systemConfig.show_date;
+
+            if (!showDay && !showDate) return '';
+
+            const options = {
+                weekday: showDay ? 'long' : undefined,
+                year: showDate ? 'numeric' : undefined,
+                month: showDate ? 'long' : undefined,
+                day: showDate ? 'numeric' : undefined,
+                timeZone: systemConfig.timezone
+            };
+
+            const formatter = new Intl.DateTimeFormat(systemConfig.date_locale, options);
+
+            if (showDay && showDate) {
+                const parts = formatter.formatToParts(now);
+                let weekday = '', day = '', month = '', year = '';
+
+                parts.forEach(p => {
+                    if (p.type === 'weekday') weekday = p.value;
+                    if (p.type === 'day') day = p.value;
+                    if (p.type === 'month') month = p.value;
+                    if (p.type === 'year') year = p.value;
+                });
+
+                const sampleString = formatter.format(now);
+                const dayIndex = sampleString.indexOf(day);
+                const monthIndex = sampleString.indexOf(month);
+
+                if (dayIndex !== -1 && monthIndex !== -1 && dayIndex < monthIndex) {
+                    return `${weekday}, ${day} ${month} ${year}`;
+                } else {
+                    return `${weekday}, ${month} ${day}, ${year}`;
+                }
             }
+
+            return formatter.format(now);
         }
 
-        // Keeps local time active and updates screen dimming thresholds for evening hours
         function startClock() {
             function update() {
                 const now = new Date();
                 
-                // Using standard options allows toLocaleTimeString to natively map AM/PM suffixes
-                const clockOptions = {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: !systemConfig.clock_format_24h,
-                    timeZone: systemConfig.timezone
-                };
-                
-                const dateOptions = {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                    timeZone: systemConfig.timezone
-                };
-                
-                clockEl.textContent = now.toLocaleTimeString(systemConfig.date_locale, clockOptions);
-                dateEl.textContent = now.toLocaleDateString(systemConfig.date_locale, dateOptions);
+                if (systemConfig.show_clock) {
+                    const clockOptions = {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: !systemConfig.clock_format_24h,
+                        timeZone: systemConfig.timezone
+                    };
+                    clockEl.textContent = now.toLocaleTimeString(systemConfig.date_locale, clockOptions);
+                }
+
+                if (systemConfig.show_day || systemConfig.show_date) {
+                    dateEl.textContent = getFormattedHeaderDate(now);
+                }
                 
                 const currentHour = now.getHours();
                 if (currentHour >= 20 || currentHour < 6) {
@@ -374,31 +609,14 @@
             setInterval(update, 1000);
         }
 
-        // Flushes internal browser state completely once every 6 hours 
-        function setupHardReloadDaemon() {
-            setInterval(() => {
-                const cleanUrl = new URL(window.location.origin + window.location.pathname);
-                window.location.replace(cleanUrl.toString());
-            }, 21600000); 
-        }
-
-        // Initialize display loop routines
         async function init() {
-            // Wait for configuration parsing before initializing clock formats and layout engines
             await loadExternalConfiguration();
-
             layoutEngine();
             window.addEventListener('resize', layoutEngine);
 
             startClock();
-            fetchBingWallpapers();
-            setupHardReloadDaemon();
-
-            // Set up interval dynamically based on parsed parameters
-            const rotationMs = systemConfig.rotation_timeout_minutes * 60 * 1000;
-            rotationTimer = setInterval(rotateImage, rotationMs); 
-
-            setInterval(fetchBingWallpapers, 21600000); 
+            await fetchGitHubArchives();
+            startSlideshowTimer();
         }
 
         init();
