@@ -27,6 +27,6 @@ By keeping UI layouts rendered via HTML/JSON served directly from your Home Assi
 1. Connect to your Home Assistant server using **Samba Share**, **SSH/SFTP**, or the **File Editor** add-on.
 2. Navigate to your `/config/www/` directory (if the `www` folder doesn't exist inside `/config/`, create it).
 3. Copy html and respective json file to www or subfolder.
-4.  If HTML card requires access to Home Assistant create long lived token. Save to token.txt. Copy file to WWW . Once HTML loads file can be deleted.
+4.  If HTML card requires access to Home Assistant create long lived token. Save to token.txt. Copy file to same location as HTML. Once HTML loads file can be deleted.
 5.  edit *__config.json file to add required data.
 6.  Use Webpage card  or  web browser to view http://(ip of home assisistant):8123/local/clock.html
