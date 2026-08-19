@@ -10,15 +10,18 @@ By keeping UI layouts rendered via HTML/JSON served directly from your Home Assi
 
 ## 📋 Overview of HTML files
 
-| File / View           | Type        | Category    | Description                                                        |
-|:--------------------- |:----------- |:----------- |:------------------------------------------------------------------ |
-| **`clock.html`**      | View        | Clock       | Analog flip clock                                                  |
-| **`clock-face.html`** | View        | Clock       | Clock face                                                         |
-| **`weather.html`**    | View        | Weather     | Daily weather forecast                                             |
-| **`alarms.html`**     | View        | Alarms      | Alarm panel showing upcoming alarms.                               |
-| **`shopping.html`**   | View        | TODO        | Large view shopping list                                           |
-| **`bing.html`**       | View        | Screensaver | Bing's screensaver shows entire archive from 2019 to date          |
-| **`switch.html`**     | Interactive | Switch      | 6 switch interface . Allow configuration of switch name and icon   |
+| File / View              | Type        | Category    | Description                                                        |
+|:---------------------------|:----------- |:----------- |:------------------------------------------------------------------ |
+| **`clock.html`**           | View        | Clock       | Analog flip clock                                                  |
+| **`clock-face.html`**      | View        | Clock       | Clock face                                                         |
+| **`cal-flip.html`**        | View        | Date        | Flip style Day / Month                                             |
+| **`clock-flip.html`**      | View        | Date        | Flip style clock hh:mm  12/24                                           |
+| **`clock-flip-secs.html`** | View        | Date        | Flip style clock  hh:mm:ss 12/24                                          |
+| **`weather.html`**         | View        | Weather     | Daily weather forecast                                             |
+| **`alarms.html`**          | View        | Alarms      | Alarm panel showing upcoming alarms.                               |
+| **`shopping.html`**        | View        | TODO        | Large view shopping list                                           |
+| **`bing.html`**            | View        | Screensaver | Bing's screensaver shows entire archive from 2019 to date          |
+| **`switch.html`**          | Interactive | Switch      | 6 switch interface . Allow configuration of switch name and icon   |
 
 ---
 
