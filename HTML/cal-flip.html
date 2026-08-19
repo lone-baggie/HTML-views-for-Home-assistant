@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- CACHE CONTROL HEADERS: Prevents Home Assistant webview from caching old versions -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <title>Flip Calendar</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Saira+Extra+Condensed:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- jQuery Library -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+  <style>
+    :root {
+      --radius: 28px;
+      --rotationtime: 0.45s;
+    }
+
+    html, body {
+      box-sizing: border-box;
+      background: transparent;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html *,
+    html *::before,
+    html *::after {
+      box-sizing: inherit;
+      padding: 0;
+      margin: 0;
+    }
+
+    /* 1. OUTER FRAME (Shell Structure - 480px Wide x 276px High) */
+    .outer-frame {
+      display: block;
+      width: 480px;
+      height: 276px;
+      padding: 16px;
+      border-radius: calc(var(--radius) + 12px);
+      background-image: linear-gradient(
+        135deg,
+        rgb(55, 54, 60) 0%,
+        rgb(28, 27, 31) 50%,
+        rgb(15, 15, 18) 100%
+      );
+      box-shadow: 
+        0 20px 35px rgba(0, 0, 0, 0.65),
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 5px rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transform-origin: center center;
+    }
+
+    /* 2. INNER FRAME (Main Body Container) */
+    .clock {
+      display: grid;
+      padding: 0 12px;
+      grid-column-gap: 12px;
+      width: 448px;
+      height: 244px;
+      border-radius: var(--radius);
+      background-image: linear-gradient(
+        rgb(14, 14, 15) 0%,
+        rgb(26, 25, 28) 20%,
+        rgb(44, 44, 52) 50%,
+        rgb(20, 20, 27) 100%
+      );
+      box-shadow: inset 0 -3px 6px 3px rgba(0, 0, 0, 0.2),
+        inset 0 4px 8px 3px rgba(0, 0, 0, 0.4),
+        0 2px 3px 1px rgba(255, 255, 255, 0.3), 0 -2px 4px 4px rgba(56, 56, 61, 0.5);
+      align-items: center;
+    }
+
+    /* Grid layout variants based on date format preference */
+    .clock.dd-mmm {
+      grid-template-columns: 120px 292px;
+    }
+
+    .clock.mmm-dd {
+      grid-template-columns: 292px 120px;
+    }
+
+    /* 3. FLIPPER SLOTS */
+    .flipper {
+      position: relative;
+      height: 220px;
+      transform-style: preserve-3d;
+      perspective: 1600px;
+    }
+
+    .flipper-day {
+      width: 120px;
+    }
+
+    /* Double-width month slot matches combined min+sec dimensions */
+    .flipper-month {
+      width: 292px;
+    }
+
+    /* Side Gears / Hinges */
+    .gear {
+      position: absolute;
+      top: 73px;
+      width: 12px;
+      height: 73px;
+      background: linear-gradient(
+        to bottom,
+        #000000 0%,
+        #666666 17%,
+        #7f7f7f 52%,
+        #7f7f7f 52%,
+        #0c0c0c 53%,
+        #595959 87%,
+        #131313 100%
+      );
+      outline: 3px solid #000;
+      z-index: 99;
+      transform-style: preserve-3d;
+      transform: translateZ(10px);
+    }
+
+    .gear:nth-child(1) {
+      left: 0px;
+    }
+
+    .gear:nth-child(2) {
+      right: 0px;
+    }
+
+    /* Card Top/Bottom Halves */
+    .top,
+    .bottom {
+      box-shadow: 0 6px 6px 1px rgba(0, 0, 0, 0.5),
+        0 2px 2px 1px rgba(255, 255, 255, 0.15);
+      border-top: 2px solid rgb(102, 103, 110);
+      border-bottom: 2px solid #000;
+      overflow: hidden;
+    }
+
+    .top {
+      position: relative;
+      width: 100%;
+      height: 95px;
+      background-image: linear-gradient(rgb(48, 49, 53) 0%, rgb(56, 57, 62) 100%);
+      margin-top: 10px;
+      margin-bottom: 5px;
+      border-top-left-radius: 19.5px;
+      border-top-right-radius: 19.5px;
+    }
+
+    .bottom {
+      position: relative;
+      width: 100%;
+      height: 95px;
+      background-image: linear-gradient(rgb(57, 58, 63) 0%, rgb(65, 65, 71) 100%);
+      margin-top: 5px;
+      margin-bottom: 10px;
+      border-bottom-left-radius: 19.5px;
+      border-bottom-right-radius: 19.5px;
+    }
+
+    /* 4. TYPOGRAPHY & TEXT POSITIONS */
+    .text {
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+      display: block;
+      position: absolute;
+      width: 100%;
+      height: 190px;
+      line-height: 190px;
+      text-align: center;
+      font-family: "Saira Extra Condensed", sans-serif;
+      top: 0;
+      left: 0;
+    }
+
+    /* Day Card Font */
+    .flipper-day .text {
+      font-size: 150px;
+    }
+
+    /* Wide Month Card Font: Plenty of room for JAN, FEB, MAR, etc. */
+    .flipper-month .text {
+      font-size: 150px;
+      letter-spacing: 4px;
+    }
+
+    .bottom .text {
+      top: -95px;
+    }
+
+    /* 5. ANIMATION CLASS AND KEYFRAMES */
+    .top.new,
+    .bottom.new {
+      position: absolute;
+      left: 0;
+      z-index: 12;
+    }
+
+    .top.new {
+      top: 0;
+      z-index: 1;
+    }
+
+    .top.new .text {
+      backface-visibility: hidden;
+    }
+
+    .bottom.new {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      transform: rotateX(0.5turn);
+      z-index: 1;
+      opacity: 0;
+    }
+
+    .flipper.flipping .top.new {
+      transform-origin: bottom center;
+      animation: rotate var(--rotationtime) 1 ease-in-out forwards;
+    }
+
+    .flipper.flipping .bottom.new {
+      animation: rotatebottom var(--rotationtime) 1 ease-in-out forwards;
+    }
+
+    @keyframes rotatebottom {
+      0% { opacity: 0; }
+      49% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes rotate {
+      0% { transform: rotateX(0) translateY(0px); }
+      100% { transform: rotateX(-180deg) translateY(-10px); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CARD STRUCTURE -->
+  <div class="outer-frame" id="clock-frame">
+    <div class="clock dd-mmm" id="clock-container">
+      
+      <!-- Day Flipper -->
+      <div class="flipper flipper-day" id="card-day">
+        <div class="gear"></div>
+        <div class="gear"></div>
+        <div class="top">
+          <div class="text">15</div>
+        </div>
+        <div class="bottom">
+          <div class="text">15</div>
+        </div>
+      </div>
+
+      <!-- Month Flipper (Double Width) -->
+      <div class="flipper flipper-month" id="card-month">
+        <div class="gear"></div>
+        <div class="gear"></div>
+        <div class="top">
+          <div class="text">AUG</div>
+        </div>
+        <div class="bottom">
+          <div class="text">AUG</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT ENGINE -->
+  <script>
+    /* AUTO-SCALER: Dynamically scales the frame inside Home Assistant Webviews */
+    function resizeClock() {
+      var frame = document.getElementById('clock-frame');
+      if (!frame) return;
+      
+      var targetWidth = 480;
+      var targetHeight = 276;
+      var windowWidth = window.innerWidth;
+      var windowHeight = window.innerHeight;
+
+      // Calculate uniform scale ratio
+      var scaleX = windowWidth / targetWidth;
+      var scaleY = windowHeight / targetHeight;
+      var scale = Math.min(scaleX, scaleY);
+
+      frame.style.transform = 'scale(' + scale + ')';
+    }
+
+    window.addEventListener('resize', resizeClock);
+    window.addEventListener('load', resizeClock);
+
+    /* Configuration State */
+    var config = {
+      date_format: "dd-mmm"
+    };
+
+    var lastDay = null;
+    var lastMonth = null;
+
+    function applyConfig() {
+      var container = $("#clock-container");
+      var dayCard = $("#card-day");
+      var monthCard = $("#card-month");
+
+      container.removeClass("dd-mmm mmm-dd");
+
+      if (config.date_format === "mmm-dd") {
+        container.addClass("mmm-dd");
+        monthCard.insertBefore(dayCard);
+      } else {
+        container.addClass("dd-mmm");
+        dayCard.insertBefore(monthCard);
+      }
+    }
+
+    function flipCard(cardElement, newValue) {
+      // Clear out old nodes from previous animation cycles
+      cardElement.find(".new").remove();
+      cardElement.removeClass("flipping");
+
+      var topHalf = cardElement.find(".top").first();
+      var bottomHalf = cardElement.find(".bottom").first();
+
+      var topClone = topHalf.clone().addClass("new");
+      var bottomClone = bottomHalf.clone().addClass("new");
+
+      bottomClone.find(".text").text(newValue);
+
+      topHalf.after(topClone);
+      topClone.append(bottomClone);
+
+      cardElement.addClass("flipping");
+      topHalf.find(".text").text(newValue);
+
+      setTimeout(function () {
+        bottomHalf.find(".text").text(newValue);
+        cardElement.removeClass("flipping");
+        cardElement.find(".new").remove();
+      }, 450);
+    }
+
+    function setDate() {
+      var date = new Date();
+      var dayStr = date.getDate().toString().padStart(2, '0');
+      var monthStr = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+
+      var dayCard = $("#card-day");
+      var monthCard = $("#card-month");
+
+      if (lastDay !== dayStr) {
+        lastDay = dayStr;
+        flipCard(dayCard, dayStr);
+      }
+
+      if (lastMonth !== monthStr) {
+        lastMonth = monthStr;
+        flipCard(monthCard, monthStr);
+      }
+    }
+
+    $(function () {
+      resizeClock();
+
+      // Fetch config file with cache-busting timestamp
+      fetch('cal-flip.json?t=' + new Date().getTime())
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error("Local config JSON not found, using default configuration.");
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          config = data;
+        })
+        .catch(function(err) {
+          console.warn("Config load notice:", err);
+        })
+        .finally(function() {
+          applyConfig();
+          setDate();
+          setInterval(setDate, 1000);
+        });
+    });
+  </script>
+
+</body>
+</html>

@@ -16,7 +16,6 @@
             padding: 0;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Disables touch gestures entirely */
         }
 
         html, body {
@@ -31,7 +30,7 @@
             color: var(--text-color);
             filter: brightness(var(--kiosk-brightness));
             transition: filter 2s ease-in-out;
-            cursor: default;
+            cursor: pointer;
         }
 
         /* Fullscreen photo stages */
@@ -65,7 +64,7 @@
             z-index: 0;
         }
 
-        /* Dark vignette scrim for text contrast */
+        /* Dynamic vignette scrim for text contrast */
         .scrim {
             position: absolute;
             top: 0;
@@ -75,7 +74,12 @@
             background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.7) 100%);
             z-index: 3;
             pointer-events: none;
-            transition: opacity 10s ease-in-out;
+            transition: opacity 0.5s ease-in-out, background 0.5s ease-in-out;
+        }
+
+        /* Inverted scrim when HUD is anchored at the top */
+        .scrim.anchor-top {
+            background: linear-gradient(0deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.7) 100%);
         }
 
         /* Heads Up Display Overlay */
@@ -89,16 +93,25 @@
             display: flex;
             flex-direction: row;       
             justify-content: flex-start; 
-            align-items: flex-end;     
+            align-items: flex-end; /* Default fallback */
             pointer-events: none;
             opacity: 1;
-            transition: opacity 10s ease-in-out;
+            transition: opacity 0.5s ease-in-out, align-items 0.3s ease-in-out;
         }
 
-        /* Class toggled by JS to trigger 10-second fade out */
-        .hud-container.fade-out,
-        .scrim.fade-out {
-            opacity: 0;
+        /* Position modifier classes */
+        .hud-container.anchor-top {
+            align-items: flex-start;
+        }
+
+        .hud-container.anchor-bottom {
+            align-items: flex-end;
+        }
+
+        /* Visibility control state */
+        .hud-container.hidden,
+        .scrim.hidden {
+            opacity: 0 !important;
         }
 
         /* Left Column: Clock only */
@@ -107,6 +120,10 @@
             flex-direction: column;
             align-items: flex-start;
             justify-content: flex-end;
+        }
+
+        .hud-container.anchor-top .clock-stack {
+            justify-content: flex-start;
         }
 
         .clock-display {
@@ -126,6 +143,10 @@
             text-shadow: 0 4px 15px rgba(0,0,0,0.8);
             padding-bottom: 0;
             max-width: 100%;
+        }
+
+        .hud-container.anchor-top .info-stack {
+            justify-content: flex-start;
         }
 
         .date-display {
@@ -172,7 +193,7 @@
     <div id="stage-b" class="stage"></div>
     <div class="scrim" id="scrim-overlay"></div>
 
-    <div class="hud-container" id="hud-frame">
+    <div class="hud-container anchor-bottom" id="hud-frame">
         <!-- Left Column: Clock -->
         <div class="clock-stack" id="clock-stack">
             <span class="clock-display" id="clock">00:00</span>
@@ -191,7 +212,7 @@
 
     <script>
         /* 
-           Cache-Buster Execution 
+            Cache-Buster Execution 
         */
         (function() {
             const currentUrl = new URL(window.location.href);
@@ -221,16 +242,17 @@
 
         // Default Configuration
         let systemConfig = {
-            slide_duration_minutes: 1,
+            slide_duration_minutes: 5,
             clock_format_24h: true,
             date_locale: "en-GB",
             timezone: "Europe/London",
-            wallpaper_regions: [],
+            wallpaper_regions: ["en-GB", "en-US"],
             show_clock: true,
             show_day: true,
             show_date: true,
             show_description: true,
-            fade_text: true
+            fade_text: true,
+            default_position: "bottom" // Default fallback position
         };
 
         async function loadExternalConfiguration() {
@@ -247,16 +269,32 @@
             }
         }
 
+        // Applies alignment classes based on a position string ('top' or 'bottom')
+        function applyHUDPosition(position) {
+            hudFrameEl.classList.remove('hidden');
+            scrimEl.classList.remove('hidden');
+
+            if (position === 'top') {
+                hudFrameEl.classList.remove('anchor-bottom');
+                hudFrameEl.classList.add('anchor-top');
+                scrimEl.classList.add('anchor-top');
+            } else {
+                hudFrameEl.classList.remove('anchor-top');
+                hudFrameEl.classList.add('anchor-bottom');
+                scrimEl.classList.remove('anchor-top');
+            }
+        }
+
         function layoutEngine() {
             const displayW = window.innerWidth;
             const displayH = window.innerHeight;
             const layoutScale = Math.min(displayW, displayH);
 
             const paddingSide = Math.round(displayW * 0.02); 
-            const paddingBottom = Math.round(layoutScale * 0.012);
+            const paddingVertical = Math.round(layoutScale * 0.02);
             const horizontalGap = Math.round(layoutScale * 0.03);
 
-            hudFrameEl.style.padding = `${paddingBottom}px ${paddingSide}px ${paddingBottom}px ${paddingSide}px`;
+            hudFrameEl.style.padding = `${paddingVertical}px ${paddingSide}px ${paddingVertical}px ${paddingSide}px`;
             
             // Toggle clock column visibility
             if (systemConfig.show_clock) {
@@ -305,9 +343,6 @@
             metaStackEl.style.paddingBottom = `0px`;
         }
 
-        /**
-         * Fetch single JSON file helper returning parsed data array or empty array on failure
-         */
         async function fetchSingleArchiveFile(url) {
             try {
                 const response = await fetch(url);
@@ -323,14 +358,9 @@
             return [];
         }
 
-        /**
-         * Parallelized multi-region archive fetcher with O(1) Hash Set deduplication.
-         * Uses wallpaper_regions from bing_config.json.
-         */
         async function fetchGitHubArchives() {
             const targetRegions = new Set();
 
-            // Helper to ensure standard region string format (e.g. en-GB) for Linux/GitHub path matching
             const sanitizeRegion = (code) => {
                 if (!code || typeof code !== 'string') return null;
                 const parts = code.split('-');
@@ -360,10 +390,8 @@
             for (const regionCode of targetRegions) {
                 const localeFile = `bing_${regionCode}.json`;
 
-                // Root recent file
                 fetchUrls.push(`https://raw.githubusercontent.com/zigou23/Bing-Daily-Wallpaper/main/bing/${localeFile}`);
 
-                // Yearly archive files from 2019 to current year
                 for (let year = startYear; year <= currentYear; year++) {
                     fetchUrls.push(`https://raw.githubusercontent.com/zigou23/Bing-Daily-Wallpaper/main/bing/${year}/${localeFile}`);
                 }
@@ -379,7 +407,6 @@
                 }
             });
 
-            // Deduplication via Hash Set
             const seenUrls = new Set();
             const uniqueDeck = [];
 
@@ -409,10 +436,6 @@
             rotateWallpaper();
         }
 
-        /**
-         * Formats image archive raw string "YYYYMMDD" -> "DD-MM-YYYY" or "MM-DD-YYYY"
-         * placing Year at the end, ordered by systemConfig.date_locale
-         */
         function formatImageDateString(rawDateStr) {
             if (!rawDateStr || rawDateStr.length !== 8) return '';
 
@@ -448,13 +471,12 @@
             }
         }
 
-        /**
-         * Resets text and scrim opacity, then schedules the half-way fade out
-         */
         function handleFadeLifecycle() {
             if (fadeTimer) clearTimeout(fadeTimer);
 
-            // Instantly restore visibility for the new picture
+            // Don't override if manually set to hidden by a tap
+            if (hudFrameEl.classList.contains('hidden')) return;
+
             hudFrameEl.classList.remove('fade-out');
             scrimEl.classList.remove('fade-out');
 
@@ -463,16 +485,12 @@
             const totalRotationMs = systemConfig.slide_duration_minutes * 60 * 1000;
             const halfWayMs = totalRotationMs / 2;
 
-            // Schedule the 10-second CSS fade to start at the halfway point
             fadeTimer = setTimeout(() => {
                 hudFrameEl.classList.add('fade-out');
                 scrimEl.classList.add('fade-out');
             }, halfWayMs);
         }
 
-        /**
-         * Pick a random wallpaper from the master deck and cross-fade
-         */
         function rotateWallpaper() {
             if (masterWallpaperDeck.length === 0) return;
 
@@ -503,7 +521,6 @@
                 line2 = dateStr ? dateStr.replace(/^ • /, '') : '';
             }
 
-            // Strip parentheses from descriptions
             line1 = line1.replace(/[\(\)]/g, '').trim();
             line2 = line2.replace(/[\(\)]/g, '').trim();
 
@@ -523,6 +540,10 @@
                 
                 currentStage = nextStage;
 
+                // Reset HUD position back to config default on slide transition
+                const targetPos = (systemConfig.default_position || 'bottom').toLowerCase();
+                applyHUDPosition(targetPos);
+
                 handleFadeLifecycle();
             };
         }
@@ -536,9 +557,6 @@
             }, rotationMs);
         }
 
-        /**
-         * Formats HUD date based on granularity settings (show_day, show_date)
-         */
         function getFormattedHeaderDate(now) {
             const showDay = systemConfig.show_day;
             const showDate = systemConfig.show_date;
@@ -609,14 +627,59 @@
             setInterval(update, 1000);
         }
 
+        /* 
+            Smart Toggle & Anchor Touch Handler 
+        */
+        function setupTouchToggle() {
+            document.addEventListener('click', (event) => {
+                const touchY = event.clientY;
+                const screenH = window.innerHeight;
+
+                const isTopHalf = touchY < screenH * 0.5;
+                const isCurrentlyHidden = hudFrameEl.classList.contains('hidden');
+                const isAnchoredTop = hudFrameEl.classList.contains('anchor-top');
+                const isAnchoredBottom = hudFrameEl.classList.contains('anchor-bottom');
+
+                if (isTopHalf) {
+                    // Tap Top Half: If visible AND already anchored at top -> Hide it
+                    if (!isCurrentlyHidden && isAnchoredTop) {
+                        hudFrameEl.classList.add('hidden');
+                        scrimEl.classList.add('hidden');
+                    } 
+                    // Otherwise -> Reveal and anchor to Top
+                    else {
+                        applyHUDPosition('top');
+                        handleFadeLifecycle();
+                    }
+                } else {
+                    // Tap Bottom Half: If visible AND already anchored at bottom -> Hide it
+                    if (!isCurrentlyHidden && isAnchoredBottom) {
+                        hudFrameEl.classList.add('hidden');
+                        scrimEl.classList.add('hidden');
+                    } 
+                    // Otherwise -> Reveal and anchor to Bottom
+                    else {
+                        applyHUDPosition('bottom');
+                        handleFadeLifecycle();
+                    }
+                }
+            });
+        }
+
         async function init() {
             await loadExternalConfiguration();
+            
+            // Set initial HUD position from config before rendering content
+            const defaultPos = (systemConfig.default_position || 'bottom').toLowerCase();
+            applyHUDPosition(defaultPos);
+
             layoutEngine();
             window.addEventListener('resize', layoutEngine);
 
             startClock();
             await fetchGitHubArchives();
             startSlideshowTimer();
+            setupTouchToggle();
         }
 
         init();
