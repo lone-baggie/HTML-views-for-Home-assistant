@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Alarm Bell - Slower Ring</title>
+    <style>
+        :root {
+            --alarm-color: #ff3b30;
+            --alarm-glow: rgba(255, 59, 48, 0.5);
+            --bell-color: #ffd700;
+            --bg-color: #111111;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .alarm-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Pulsing background aura */
+        .alarm-aura {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: var(--alarm-color);
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+            animation: pulse-aura 1.4s infinite alternate ease-in-out;
+            z-index: 1;
+        }
+
+        /* SVG Bell Wrapper - Swing duration slowed down */
+        .bell-wrapper {
+            position: relative;
+            z-index: 2;
+            width: 400px;
+            height: 400px;
+            transform-origin: top center;
+            animation: ring-bell 0.35s infinite alternate ease-in-out;
+        }
+
+        .bell-svg {
+            width: 100%;
+            height: 100%;
+            fill: var(--bell-color);
+            filter: drop-shadow(0 0 30px var(--alarm-glow));
+        }
+
+        /* Soundwaves radiating outwards */
+        .waves {
+            position: absolute;
+            z-index: 2;
+            width: 550px;
+            height: 550px;
+            border-radius: 50%;
+            border: 8px solid var(--alarm-color);
+            opacity: 0;
+            animation: emit-waves 1.6s infinite cubic-bezier(0.1, 0.8, 0.3, 1);
+        }
+
+        .waves.delay {
+            animation-delay: 0.5s;
+        }
+
+        /* Keyframe Animations */
+        @keyframes ring-bell {
+            0% {
+                transform: rotate(-18deg);
+            }
+            100% {
+                transform: rotate(18deg);
+            }
+        }
+
+        @keyframes pulse-aura {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.2;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0.7;
+            }
+        }
+
+        @keyframes emit-waves {
+            0% {
+                transform: scale(0.5);
+                opacity: 0.9;
+            }
+            100% {
+                transform: scale(1.6);
+                opacity: 0;
+            }
+        }
+
+        /* Alarm Text Label */
+        .alarm-text {
+            margin-top: 40px;
+            color: #ffffff;
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            z-index: 2;
+            text-shadow: 0 0 20px var(--alarm-color);
+            animation: flash-text 0.8s infinite alternate;
+        }
+
+        @keyframes flash-text {
+            0% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="alarm-container">
+        <div class="alarm-aura"></div>
+
+        <div class="waves"></div>
+        <div class="waves delay"></div>
+
+        <div class="bell-wrapper">
+            <svg class="bell-svg" viewBox="0 0 24 24">
+                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+            </svg>
+        </div>
+
+        <div class="alarm-text">ALARM ACTIVE</div>
+    </div>
+
+</body>
+</html>
