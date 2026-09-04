@@ -1,0 +1,40 @@
+{
+  "token_configuration": {
+    "filename": "token.txt"
+  },
+  "ui_configuration": {
+    "panel_title": "📻 Radio stations",
+    "stations": [
+      {
+        "entity_id": "input_button.1",
+        "display_name": "BBC Radio 1",
+        "logo_path": "/local/bbc_radio_1.svg"
+      },
+      {
+        "entity_id": "input_button.2",
+        "display_name": "BBC Radio 2",
+        "logo_path": "/local/bbc_radio_2.svg"
+      },
+      {
+        "entity_id": "input_button.3",
+        "display_name": "BBC Radio 3",
+        "logo_path": "/local/bbc_radio_3.svg"
+      },
+      {
+        "entity_id": "input_button.4",
+        "display_name": "BBC Radio 4",
+        "logo_path": "/local/bbc_radio_4.svg"
+      },
+      {
+        "entity_id": "input_button.5",
+        "display_name": "BBC Radio 5 Live",
+        "logo_path": "/local/bbc_radio_5.svg"
+      },
+      {
+        "entity_id": "input_button.6",
+        "display_name": "BBC Radio 6 Music",
+        "logo_path": "/local/bbc_radio_6.svg"
+      }
+    ]
+  }
+}
