@@ -33,6 +33,12 @@
             cursor: pointer;
         }
 
+        /* Class applied when touch interaction is disabled in config */
+        body.touch-disabled {
+            cursor: default !important;
+            pointer-events: none !important;
+        }
+
         /* Fullscreen photo stages */
         .stage {
             position: absolute;
@@ -111,6 +117,12 @@
         /* Visibility control state */
         .hud-container.hidden,
         .scrim.hidden {
+            opacity: 0 !important;
+        }
+
+        /* Fade-out state used by fade_text lifecycle */
+        .hud-container.fade-out,
+        .scrim.fade-out {
             opacity: 0 !important;
         }
 
@@ -252,7 +264,8 @@
             show_date: true,
             show_description: true,
             fade_text: true,
-            default_position: "bottom" // Default fallback position
+            default_position: "bottom", // Default fallback position
+            enable_touch: true // New default touch setting
         };
 
         async function loadExternalConfiguration() {
@@ -631,6 +644,14 @@
             Smart Toggle & Anchor Touch Handler 
         */
         function setupTouchToggle() {
+            // Apply visual/pointer lock if touch is disabled in config
+            if (systemConfig.enable_touch === false) {
+                document.body.classList.add('touch-disabled');
+                return;
+            } else {
+                document.body.classList.remove('touch-disabled');
+            }
+
             document.addEventListener('click', (event) => {
                 const touchY = event.clientY;
                 const screenH = window.innerHeight;
