@@ -33,3 +33,15 @@ By keeping UI layouts rendered via HTML/JSON served directly from your Home Assi
 4.  If HTML card requires access to Home Assistant create long lived token. Save to token.txt. Copy file to same location as HTML. Once HTML loads file can be deleted.
 5.  edit *__config.json file to add required data.
 6.  Use Webpage card  or  web browser to view http://(ip of home assisistant):8123/local/clock.html
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+## ☕ Support
+
+If you find this integration useful and want to support my work, feel free to buy me a coffee!
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-yellow.svg?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/lonebaggie)
